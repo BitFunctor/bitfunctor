@@ -10,8 +10,15 @@ import Data.Aeson
 import Data.Text
 
 import Network.BitFunctor.Crypto.Types
+import Network.BitFunctor.Crypto.Hash (hash)
 import qualified Network.BitFunctor.Theory.Types as Theory
+import Network.BitFunctor.Identifiable
+
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
+
+import Data.Binary as Binary (Binary(..), encode)
+import Data.ByteString.Lazy (toStrict)
+
 
 
 data Transaction = Transaction { sender    :: PublicKey
@@ -21,7 +28,7 @@ data Transaction = Transaction { sender    :: PublicKey
                                , timestamp :: UTCTime
                                , payload   :: TheoryPayload
                                , signature :: Signature
-                               } deriving (Show, Eq)
+                               } deriving (Show, Eq, Generic)
 
 data TheoryPayload = TheoryPayload {
   uses     :: [(Theory.Kind, Text)],
@@ -29,6 +36,15 @@ data TheoryPayload = TheoryPayload {
   code     :: Theory.Code
 } deriving (Eq, Show, Generic)
 
+
+instance Identifiable Transaction where
+  id = hash . toStrict . Binary.encode
+
+instance Binary Transaction where
+  put = undefined
+  get = undefined
+
+instance Binary TheoryPayload
 
 -- instance FromJSON Transaction
 
