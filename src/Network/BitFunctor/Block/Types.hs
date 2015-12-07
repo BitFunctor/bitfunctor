@@ -13,14 +13,15 @@ import qualified Data.ByteString.Base16 as B16 (encode, decode)
 import Data.Time.Clock (UTCTime)
 import Network.BitFunctor.Crypto.Types
 import Data.ByteArray (convert)
-import Network.BitFunctor.Crypto.Hash (hash)
+import Network.BitFunctor.Crypto.Hash (hash, Hash, Id)
 
 import Data.Binary as Bin (Binary(..), encode)
 import Data.ByteString.Lazy (toStrict)
 
 
-data Block = Block { transactions        :: [Transaction]
+data Block = Block { previous            :: Hash Id
                    , timestamp           :: UTCTime
+                   , transactions        :: [Transaction]
                    , baseTarget          :: Integer
                    , generator           :: PublicKey
                    , generationSignature :: Signature
