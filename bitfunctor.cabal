@@ -24,6 +24,7 @@ library
                        Network.BitFunctor.Crypto.Types,
                        Network.BitFunctor.Theory.Complexity,
                        Network.BitFunctor.Theory.Types,
+                       Network.BitFunctor.Token,
                        Network.BitFunctor.Transaction.Types
   build-depends:       base,
                        bytestring,
