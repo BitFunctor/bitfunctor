@@ -49,13 +49,13 @@ instance Binary TheoryPayload
 -- instance FromJSON Transaction
 
 instance ToJSON Transaction where
-  toJSON tx@(Transaction{}) = object [ "sender"    .= show (B16.encode $ convert $ sender tx)
-                                     , "recipient" .= show (B16.encode $ convert $ recipient tx)
+  toJSON tx@(Transaction{}) = object [ "sender"    .= sender tx
+                                     , "recipient" .= recipient tx
                                      , "amount"    .= value (amount tx)
                                      , "fee"       .= value (fee tx)
                                      , "timestamp" .= timestamp tx
                                      , "payload"   .= payload tx
-                                     , "signature" .= show (B16.encode $ convert $ signature tx)
+                                     , "signature" .= signature tx
                                      ]
 
 
