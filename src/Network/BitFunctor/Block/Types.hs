@@ -19,12 +19,12 @@ import Data.Binary as Bin (Binary(..), encode)
 import Data.ByteString.Lazy (toStrict)
 
 
-data Block = Block { previous            :: Hash Id
-                   , timestamp           :: UTCTime
-                   , transactions        :: [Transaction]
-                   , baseTarget          :: Integer
-                   , generator           :: PublicKey
-                   , generationSignature :: Signature
+data Block = Block { previous     :: Hash Id
+                   , timestamp    :: UTCTime
+                   , transactions :: [Transaction]
+                   , baseTarget   :: Integer
+                   , generator    :: PublicKey
+                   , genSignature :: Signature
                    } deriving (Show, Generic)
 
 instance Binary Block where
@@ -38,9 +38,9 @@ instance Identifiable Block where
 -- instance FromJSON Block
 
 instance ToJSON Block where
-  toJSON b@(Block{}) = object [ "transactions"        .= transactions b
-                              , "timestamp"           .= timestamp b
-                              , "baseTarget"          .= baseTarget b
-                              , "generator"           .= show (B16.encode $ convert $ generator b)
-                              , "generationSignature" .= show (B16.encode $ convert $ generationSignature b)
+  toJSON b@(Block{}) = object [ "transactions" .= transactions b
+                              , "timestamp"    .= timestamp b
+                              , "baseTarget"   .= baseTarget b
+                              , "generator"    .= show (B16.encode $ convert $ generator b)
+                              , "genSignature" .= show (B16.encode $ convert $ genSignature b)
                               ]
