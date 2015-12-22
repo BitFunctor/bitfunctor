@@ -41,6 +41,6 @@ instance ToJSON Block where
   toJSON b@(Block{}) = object [ "transactions" .= transactions b
                               , "timestamp"    .= timestamp b
                               , "baseTarget"   .= baseTarget b
-                              , "generator"    .= show (B16.encode $ convert $ generator b)
-                              , "genSignature" .= show (B16.encode $ convert $ genSignature b)
+                              , "generator"    .= generator b
+                              , "genSignature" .= genSignature b
                               ]
