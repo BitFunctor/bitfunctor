@@ -21,7 +21,7 @@ import Data.ByteString.Lazy (toStrict)
 
 data Block = Block { previous     :: Hash Id
                    , timestamp    :: UTCTime
-                   , transactions :: [Transaction]
+                   , transactions :: [Hash Id]
                    , baseTarget   :: Integer
                    , generator    :: PublicKey
                    , genSignature :: Signature
