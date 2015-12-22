@@ -19,6 +19,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Network.BitFunctor.Account,
+                       Network.BitFunctor.Block,
                        Network.BitFunctor.Block.Types,
                        Network.BitFunctor.Crypto.Hash,
                        Network.BitFunctor.Crypto.Hash.Types,
