@@ -25,7 +25,7 @@ data Block = Block { previous     :: Hash Id
                    , transactions :: [Hash Id]
                    , baseTarget   :: Integer
                    , generator    :: AccountId
-                   , genSignature :: Signature
+                   , signature    :: Signature
                    } deriving (Show, Generic)
 
 instance Binary Block where
@@ -43,5 +43,5 @@ instance ToJSON Block where
                               , "timestamp"    .= timestamp b
                               , "baseTarget"   .= baseTarget b
                               , "generator"    .= generator b
-                              , "genSignature" .= genSignature b
+                              , "signature"    .= signature b
                               ]

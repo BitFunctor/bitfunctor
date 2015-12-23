@@ -1,31 +1,37 @@
-module Network.BitFunctor.Block (newBlock, signBlock) where
+module Network.BitFunctor.Block ( Block (..)
+                                , new
+                                , sign
+                                , verify
+                                ) where
 
 import Network.BitFunctor.Block.Types
 import Network.BitFunctor.Crypto.Hash
 
 import Data.Time.Clock
-import Crypto.PubKey.Ed25519 (sign)
+import qualified Crypto.PubKey.Ed25519 as C (sign, verify)
 import qualified Data.ByteString as B
 import Network.BitFunctor.Account
 
 
-newBlock :: Hash Id -> Account -> [Hash Id] -> (Integer, UTCTime) -> Maybe Block
-newBlock prevBlockId gen txsIds (bt, time) = do
-  signBlock gen $ empty { previous     = prevBlockId
-                        , timestamp    = time
-                        , transactions = txsIds
-                        , baseTarget   = bt
-                        }
+new :: Hash Id -> Account -> [Hash Id] -> (Integer, UTCTime) -> Maybe Block
+new prevBlockId gen txsIds (bt, time) = do
+  sign gen $ empty { previous     = prevBlockId
+                   , timestamp    = time
+                   , transactions = txsIds
+                   , baseTarget   = bt
+                   }
 
-
-signBlock :: Account -> Block -> Maybe Block
-signBlock acc block = do
+sign :: Account -> Block -> Maybe Block
+sign acc block = do
   sk <- secKey acc
-  let pk = pubKey acc
   let sigBlockBin = signEncode block
-  return block { generator    = pk
-               , genSignature = sign sk pk sigBlockBin
+  return block { generator = toAccountId acc
+               , signature = C.sign sk (pubKey acc) sigBlockBin
                }
+
+verify :: Block -> Bool
+verify b = C.verify (pubKey . fromAccountId $ generator b)
+                    (signEncode b) $ signature b
 
 
 signEncode :: Block -> B.ByteString
