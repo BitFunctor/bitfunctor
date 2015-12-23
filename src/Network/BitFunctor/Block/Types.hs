@@ -5,6 +5,7 @@ module Network.BitFunctor.Block.Types where
 
 import Network.BitFunctor.Transaction.Types (Transaction)
 import Network.BitFunctor.Identifiable
+import Network.BitFunctor.Account
 
 import Data.ByteString
 import Data.Aeson
@@ -23,7 +24,7 @@ data Block = Block { previous     :: Hash Id
                    , timestamp    :: UTCTime
                    , transactions :: [Hash Id]
                    , baseTarget   :: Integer
-                   , generator    :: PublicKey
+                   , generator    :: AccountId
                    , genSignature :: Signature
                    } deriving (Show, Generic)
 

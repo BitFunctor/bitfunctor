@@ -1,5 +1,8 @@
 module Network.BitFunctor.Account ( Account (..)
+                                  , AccountId
                                   , generate
+                                  , fromAccountId
+                                  , toAccountId
                                   ) where
 
 import Network.BitFunctor.Crypto.Types
@@ -7,7 +10,18 @@ import Network.BitFunctor.Crypto.Types
 import Crypto.PubKey.Ed25519 (toPublic, secretKey)
 import Crypto.Error (onCryptoFailure, CryptoError)
 import Crypto.Random.EntropyPool
-import Data.ByteArray (ScrubbedBytes)
+import Data.ByteArray (ScrubbedBytes, convert)
+
+import Data.Aeson
+import qualified Data.ByteString.Base16 as B16 (encode, decode)
+import qualified Data.Text.Encoding as TE
+
+
+newtype AccountId = AccountId PublicKey
+                    deriving (Show, Eq)
+
+instance ToJSON AccountId where
+  toJSON (AccountId pk) = toJSON pk
 
 
 data Account = Account { pubKey :: PublicKey
@@ -24,3 +38,9 @@ generate = do
                            (\sk -> Right $ Account { pubKey = toPublic sk
                                                    , secKey = Just sk })
                            (secretKey (entropy :: ScrubbedBytes))
+
+fromAccountId :: AccountId -> Account
+fromAccountId (AccountId pk) = Account { pubKey = pk, secKey = Nothing }
+
+toAccountId :: Account -> AccountId
+toAccountId = AccountId . pubKey

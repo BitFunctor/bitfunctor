@@ -9,6 +9,7 @@ import GHC.Generics
 import Data.Aeson
 import Data.Text
 
+import Network.BitFunctor.Account
 import Network.BitFunctor.Token
 import Network.BitFunctor.Crypto.Types
 import Network.BitFunctor.Crypto.Hash (hash)
@@ -21,8 +22,8 @@ import Data.Binary as Binary (Binary(..), encode)
 import Data.ByteString.Lazy (toStrict)
 
 
-data Transaction = Transaction { sender    :: PublicKey
-                               , recipient :: PublicKey
+data Transaction = Transaction { sender    :: AccountId
+                               , recipient :: AccountId
                                , amount    :: BTF
                                , fee       :: BTF
                                , timestamp :: UTCTime
