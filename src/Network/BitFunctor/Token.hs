@@ -8,13 +8,20 @@ class Token t where
   value :: t -> Integer
 
 
--- | BTC – underlying token type. 
+-- | BTF – underlying token type.
 -- Contains value in units (identity token container, actually)
 newtype BTF = BTF Integer
-              deriving (Show, Eq)
+              deriving (Show, Eq, Ord)
 
 instance Token BTF where
-  value (BTF v) = v
+  value (BTF v)       = v
+
+-- Num typeclass defines too much things besides (+) and (-)...
+(+.) :: BTF -> BTF -> BTF
+(BTF v) +. (BTF u) = BTF (u + v)
+
+(-.) :: BTF -> BTF -> BTF
+(BTF v) -. (BTF u) = BTF (u - v)
 
 
 -- | cBTF – contribution BTF token granted for contribution to the BTF theory.
