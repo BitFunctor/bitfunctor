@@ -35,8 +35,8 @@ generate = do
   let secKeyLength = 32 -- cryptonite doesn't export that...
   entropy <- getEntropyFrom pool secKeyLength
   return $ onCryptoFailure Left
-                           (\sk -> Right $ Account { pubKey = toPublic sk
-                                                   , secKey = Just sk })
+                           (\sk -> Right Account { pubKey = toPublic sk
+                                                 , secKey = Just sk })
                            (secretKey (entropy :: ScrubbedBytes))
 
 fromAccountId :: AccountId -> Account
