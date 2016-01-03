@@ -1,7 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.BitFunctor.Transaction.Types where
+module Network.BitFunctor.Transaction.Types ( Transaction (..)
+                                            , TransactionHash
+                                            , TheoryPayload (..)
+                                            ) where
 
 import Data.Time.Clock (UTCTime)
 import Data.ByteArray (convert)
@@ -12,7 +15,7 @@ import Data.Text
 import Network.BitFunctor.Account
 import Network.BitFunctor.Token
 import Network.BitFunctor.Crypto.Types
-import Network.BitFunctor.Crypto.Hash (hash)
+import Network.BitFunctor.Crypto.Hash (hash, Hash, Id)
 import qualified Network.BitFunctor.Theory.Types as Theory
 import Network.BitFunctor.Identifiable
 
@@ -64,3 +67,6 @@ instance FromJSON TheoryPayload
 
 instance ToJSON TheoryPayload where
   toEncoding = genericToEncoding defaultOptions
+
+newtype TransactionHash = Hash (Hash Id)
+                          deriving (Show, Eq, Ord)

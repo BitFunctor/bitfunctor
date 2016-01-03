@@ -1,4 +1,5 @@
 module Network.BitFunctor.Transaction ( Transaction (..)
+                                      , TransactionHash
                                       , sign
                                       , verify
                                       , value
