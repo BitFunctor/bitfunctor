@@ -2,6 +2,7 @@ module Network.BitFunctor.Transaction ( Transaction (..)
                                       , sign
                                       , verify
                                       , value
+                                      , validateHeader
                                       ) where
 
 import qualified Crypto.PubKey.Ed25519 as C (sign, verify)
@@ -9,7 +10,7 @@ import qualified Data.ByteString as B
 
 import Network.BitFunctor.Transaction.Types
 import Network.BitFunctor.Account
-import Network.BitFunctor.Token (BTF, (+.))
+import Network.BitFunctor.Token (BTF (..), (+.))
 
 
 sign :: Account -> Transaction -> Maybe Transaction
@@ -26,6 +27,11 @@ verify tx = C.verify (pubKey . fromAccountId $ sender tx)
 
 value :: Transaction -> BTF
 value tx = amount tx +. fee tx
+
+validateHeader :: Transaction -> Bool
+validateHeader tx = worthwhile && signatureValid
+                  where worthwhile     = value tx >= BTF 0
+                        signatureValid = verify tx
 
 
 signEncode :: Transaction -> B.ByteString
