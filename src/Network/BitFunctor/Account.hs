@@ -20,6 +20,10 @@ import qualified Data.Text.Encoding as TE
 newtype AccountId = AccountId PublicKey
                     deriving (Show, Eq)
 
+
+instance Ord AccountId where
+  compare (AccountId pk1) (AccountId pk2) = undefined -- FIXME
+
 instance ToJSON AccountId where
   toJSON (AccountId pk) = toJSON pk
 
