@@ -45,3 +45,6 @@ instance ToJSON Block where
                               , "generator"    .= generator b
                               , "signature"    .= signature b
                               ]
+
+newtype BlockHash = Hash (Hash Id)
+                    deriving (Show, Eq, Ord)

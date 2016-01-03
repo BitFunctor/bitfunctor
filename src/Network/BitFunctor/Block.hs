@@ -1,4 +1,5 @@
 module Network.BitFunctor.Block ( Block (..)
+                                , BlockHash
                                 , new
                                 , sign
                                 , verify
