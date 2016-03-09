@@ -32,7 +32,7 @@ import Data.Char (isSpace)
 import Text.ParserCombinators.Parsec.Number (decimal, int, nat)
 import Data.Maybe (fromMaybe)
 import Data.Either (lefts, rights)
-import qualified Data.List as DL (map, nub)
+import qualified Data.List as DL (map, nub, nubBy, filter)
 import Foreign.Marshal.Alloc (mallocBytes, free)
 import qualified Data.ByteString as DBS (hGet)
 
@@ -260,7 +260,7 @@ globfileResource =  do
                    newline
                    return $ GlobFileResource $ GlobFileRawEntry sbyte ebyte kind libname modname name
 
-type PreStatement = StatementA GlobFileRawEntry
+type PreStatement = StatementA (Kind, Text)
 
 data ResourceKind = Resource | StopStatement | IgnorableRes
 
@@ -288,48 +288,91 @@ loadVernacCode vfname pos1 (Just pos2) = do
                                      -- buf <- mallocBytes sz :: IO (Ptr Word8)
                                      -- n <- hGetBuf h buf sz
                                      -- bs <- unsafePackCStringFinalizer buf sz (free buf)
-                                     bs <- DBS.hGet h sz
-                                     return $ CoqText $ TE.decodeUtf8 bs
+                                     if (sz >0) then do 
+                                        bs <- DBS.hGet h sz
+                                        return $ CoqText $ TE.decodeUtf8 bs
+                                     else
+                                        return $ CoqText ""
 loadVernacCode vfname pos1 Nothing = return $ CoqText "not implemented"
 
-fromGlobFileRawEntry :: GlobFileRawEntry -> Maybe (Int, PreStatement)
-fromGlobFileRawEntry r = case (resourceKind $ ekind r) of
+fromGlobFileRawEntry :: GlobFileName -> GlobFileRawEntry -> Maybe (Int, PreStatement)
+fromGlobFileRawEntry lib r = case (resourceKind $ ekind r) of
                            Resource ->
-                              let fqn = DT.pack $ (elibname r) ++ "." ++ (emodname r) ++ "." ++ (ename r) in
-                              Just ((espos r), Statement fqn (ekind r) (CoqText "") [])
+                              let ln = elibname r in
+                              let pref' = if (Prelude.null ln) then lib else ln in
+                              let mn = emodname r in
+                              let pref = if (Prelude.null mn) then pref' else pref' ++ "." ++ mn in
+                              let sn = ename r in
+                              if (Prelude.null sn) then Nothing
+                                  else   
+                                    let fqn = DT.pack $ pref ++ "." ++ sn in
+                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") [])
                            StopStatement -> Nothing
                            IgnorableRes -> Nothing
-                          
-collectStatements0 :: [GlobFileEntry] -> String -> Maybe (Int, PreStatement) -> Maybe Int -> [PreStatement] -> IO [PreStatement]
-collectStatements0 [] vfname (Just (pos1, cs)) mpos2  accs = do
+
+{--
+GlobFileRawEntry {espos:: Int, eepos:: Int, ekind:: Kind, elibname:: String, emodname:: String, ename:: String}
+data StatementA a = Statement { name :: Text, kind :: Kind, code :: Code, uses :: [a]} deriving (Eq, Show, Generic)
+--}
+
+collectStatements0 :: [GlobFileEntry] -> String -> GlobFileName -> Maybe (Int, PreStatement) -> Maybe Int -> [PreStatement] -> IO [PreStatement]
+collectStatements0 [] vfname _ (Just (pos1, cs)) mpos2  accs = do
                                                               cd <- loadVernacCode vfname pos1 mpos2  
                                                               return (cs {code = cd}:accs)
-collectStatements0 [] _ Nothing _  accs = return accs
-collectStatements0 (s:ss) vfname pcs@(Just (pos1, cs)) mpos2 accs =
+collectStatements0 [] _ _ Nothing _  accs = return accs
+collectStatements0 (s:ss) vfname libname pcs@(Just (pos1, cs)) mpos2 accs =
             case s of
-                GlobFileStatement r-> do                   
-                                      cd <- loadVernacCode vfname pos1 (Just $ fromMaybe ((espos r) - 1)  mpos2)
-                                      let accs' = (cs {code=cd}:accs)
-                                      let newpcs = fromGlobFileRawEntry r
-                                      collectStatements0 ss vfname newpcs Nothing accs'                     
+                GlobFileStatement r-> 
+                                      case (ekind r, kind cs) of
+                                        (Constructor, Inductive) ->                                              
+                                             let pcons' = fromGlobFileRawEntry libname r in
+                                             case pcons' of
+                                               Nothing -> fail "Cannot collect constructor"
+                                               Just (_, cons') -> 
+                                                   let cons = cons' {uses=[(kind cs, name cs)]} in
+                                                   collectStatements0 ss vfname libname pcs Nothing (cons:accs)
+                                        (Constructor, _) -> fail "Meeting constructor when collecting not-Inductive"
+                                        _ -> do
+                                               cd <- loadVernacCode vfname pos1 (Just $ fromMaybe ((espos r) - 1)  mpos2)
+                                               let accs' = (cs {code=cd}:accs)
+                                               let newpcs = fromGlobFileRawEntry libname r
+                                               collectStatements0 ss vfname libname newpcs Nothing accs'                     
                 GlobFileResource r ->
                                       case (resourceKind $ ekind r) of
                                         StopStatement -> 
                                                    let newpos2 = Just $ fromMaybe ((espos r) - 1) mpos2 in
-                                                   collectStatements0 ss vfname pcs newpos2 accs
-                                        Resource -> 
-                                                   let newpcs = Just (pos1, cs {uses = r:(uses cs)}) in
-                                                   collectStatements0 ss vfname newpcs Nothing accs
-                                        IgnorableRes -> collectStatements0 ss vfname pcs Nothing accs
-collectStatements0 (s:ss) vfname Nothing _ accs =
+                                                   collectStatements0 ss vfname libname pcs newpos2 accs
+                                        Resource ->
+                                                   let r' = fromGlobFileRawEntry libname r in
+                                                   case r' of
+                                                    Nothing -> collectStatements0 ss vfname libname pcs Nothing accs 
+                                                    Just (_, rs) ->
+                                                      let newpcs = Just (pos1, cs {uses = (kind rs, name rs):(uses cs)}) in
+                                                      collectStatements0 ss vfname libname newpcs Nothing accs
+                                        IgnorableRes -> collectStatements0 ss vfname libname pcs Nothing accs
+collectStatements0 (s:ss) vfname libname Nothing _ accs =
             case s of
                 GlobFileStatement r ->                                                          
-                                      let newpcs = fromGlobFileRawEntry r in
-                                      collectStatements0 ss vfname newpcs Nothing accs                     
+                                      let newpcs = fromGlobFileRawEntry libname r in
+                                      collectStatements0 ss vfname libname newpcs Nothing accs                     
                 GlobFileResource r ->
-                                      collectStatements0 ss vfname Nothing Nothing accs
+                                      collectStatements0 ss vfname libname Nothing Nothing accs
+
+collectStatements sts vfname libname = collectStatements0 sts vfname libname Nothing Nothing []
 
 
+eqStatement :: PreStatement -> PreStatement -> Bool
+eqStatement s1 s2 = (name s1 == name s2) && (kind s1 == kind s2)
+
+{--
+GlobFileRawEntry {espos:: Int, eepos:: Int, ekind:: Kind, elibname:: String, emodname:: String, ename:: String}
+data StatementA a = Statement { name :: Text, kind :: Kind, code :: Code, uses :: [a]} deriving (Eq, Show, Generic)
+--}
+
+
+adjustStatements :: [PreStatement] -> [PreStatement]
+adjustStatements sts = DL.nubBy eqStatement $
+                       DL.map (\s -> s{uses = DL.filter (\u -> u /= (kind s, name s)) $ DL.nub $ uses s} ) sts
 
 extractStatements :: [String] -> [Statement] -> IO [Statement]
 extractStatements [] acc = return acc
@@ -350,7 +393,7 @@ extractStatements (f:fs) acc = do
                                                       Left err -> putStrLn "Parse error: " >> print err
                                                       Right (dig, lib, ent)  -> do
                                                                         -- putStrLn $ show ent
-                                                                        sts <- collectStatements0 ent vFile Nothing Nothing []
-                                                                        let sts' = DL.map (\s -> s{uses = DL.nub $ uses s}) sts 
-                                                                        putStrLn $ show sts'
+                                                                        sts' <- collectStatements ent vFile lib
+                                                                        let sts = adjustStatements sts' 
+                                                                        putStrLn $ show sts
                                                    return acc

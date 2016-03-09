@@ -1,3 +1,5 @@
+Variable l: nat.
+
 Module M0.
 
 Module M1.
@@ -24,6 +26,16 @@ Qed.
 
 Module M11.
 
+Inductive mylist {X} := 
+| mynil: mylist
+| mycons: X -> mylist -> mylist.
+
+Lemma eqL1: forall X (x:X) l, mycons x l = mycons x l.
+Proof.
+reflexivity.
+Qed.  
+
+
 Lemma eqI3: forall (x: I1), x=x.
 Proof.
 apply eqI1.
@@ -42,5 +54,9 @@ Qed.
 
 End M2.
 
+Variable l: @M1.M11.mylist nat.
+
+
 End M0.
+
 
