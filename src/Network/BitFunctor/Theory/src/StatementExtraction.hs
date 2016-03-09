@@ -32,9 +32,10 @@ import Data.Char (isSpace)
 import Text.ParserCombinators.Parsec.Number (decimal, int, nat)
 import Data.Maybe (fromMaybe)
 import Data.Either (lefts, rights)
-import qualified Data.List as DL (map, nub, nubBy, filter)
+import qualified Data.List as DL 
 import Foreign.Marshal.Alloc (mallocBytes, free)
 import qualified Data.ByteString as DBS (hGet)
+import qualified Data.Map as Map
 
 data HashAlgorithm a =>
      Hash a = Hash (Digest a)
@@ -64,7 +65,7 @@ hash = Hash . H.hash
 data Code = CoqText Text
             deriving (Eq, Show, Generic)
 
-data Kind = Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive
+data Kind = Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom
             deriving (Eq, Show, Generic)
 
 instance Binary Text where
@@ -75,6 +76,7 @@ instance Binary Code where
   put (CoqText a) = put a
   get = get >>= \a -> return (CoqText a)
 
+-- refactoring needed
 instance Binary Kind where
   put Definition = putWord8 0
   put Theorem = putWord8 1
@@ -87,6 +89,7 @@ instance Binary Kind where
   put Module = putWord8 8
   put Section = putWord8 9
   put Inductive = putWord8 10
+  put Axiom = putWord8 11
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -101,6 +104,7 @@ instance Binary Kind where
       8 -> return Module
       9 -> return Section
       10 -> return Inductive
+      11 -> return Axiom
       _ -> fail "Binary_Kind_get: Kind cannot be parsed"
 
 instance Binary Id where
@@ -153,12 +157,6 @@ type GlobFileDigest = String
 
 type GlobFileName = String
 
-{--
-data GlobFileImport = GlobFileImport {ispos::Int,
-                                      iepos::Int,
-                                      ilibname::String} deriving (Eq, Show, Generic)
---}
-
 data GlobFileRawEntry = GlobFileRawEntry {espos:: Int,
                                     eepos:: Int,
                                     ekind:: Kind,
@@ -184,23 +182,6 @@ globfileData = do
 globfileDigest = string "DIGEST" >> spaces >> globfileIdent 
 globfileName = char 'F' >> globfileIdent
 
-{--globfileImport = do
-                   char 'R'
-                   sbyte <- decimal
-                   char ':'
-                   ebyte <- decimal
-                   spaces
-                   name <- globfileIdent
-                   spaces
-                   string "<>"
-                   spaces
-                   string "<>"
-                   spaces
-                   string "lib"
-                   newline
-                   return $ GlobFileImport sbyte ebyte name
---}
-
 -- TODO: Compare with Coq correct idents
 -- .<>[]'_,:=/\\
 
@@ -216,14 +197,15 @@ trim = f . f
 
 
 globfileStatement = do
-                     kind <-      do {string "def"; return Definition}
-                              <|> do {string "not"; return Notation}
-                              <|> do {string "ind"; return Inductive}
-                              <|> do {string "constr"; return Constructor}
-                              <|> do {string "prf"; return Proof}
-                              <|> do {string "mod"; return Module}
-                              <|> do {string "sec"; return Section}
-                              <|> do {string "var"; return Variable}
+                     kind <-      do {try (string "def"); return Definition}
+                              <|> do {try (string "not"); return Notation}
+                              <|> do {try (string "ind"); return Inductive}
+                              <|> do {try (string "constr"); return Constructor}
+                              <|> do {try (string "prf"); return Proof}
+                              <|> do {try (string "mod"); return Module}
+                              <|> do {try (string "sec"); return Section}
+                              <|> do {try (string "var"); return Variable}
+                              <|> do {try (string "ax"); return Axiom}
                      spaces
                      sbyte <- decimal
                      mebyte <- optionMaybe (char ':' >> decimal)                                                        
@@ -248,15 +230,17 @@ globfileResource =  do
                    spaces                   
                    name <- globfileIdent <|> globfileNot
                    spaces
-                   kind <-     do {string "var"; return Variable}
-                           <|> do {string "def"; return Definition}
-                           <|> do {string "not"; return Notation}
-                           <|> do {string "ind"; return Inductive}
-                           <|> do {string "constr"; return Constructor}
-                           <|> do {string "thm"; return Theorem}
-                           <|> do {string "lib"; return Library}
-                           <|> do {string "mod"; return Module}
-                           <|> do {string "sec"; return Section}
+                   kind <-     do {try (string "var");  return Variable}
+                           <|> do {try (string "defax");  return Axiom}
+                           <|> do {try (string "def");  return Definition}
+                           <|> do {try (string "not");  return Notation}
+                           <|> do {try (string "ind");  return Inductive}
+                           <|> do {try (string "constr");  return Constructor}
+                           <|> do {try (string "thm");  return Theorem}
+                           <|> do {try (string "lib");  return Library}
+                           <|> do {try (string "mod");  return Module}
+                           <|> do {try (string "sec");  return Section}
+                           <|> do {try (string "prfax");  return Axiom}
                    newline
                    return $ GlobFileResource $ GlobFileRawEntry sbyte ebyte kind libname modname name
 
@@ -264,7 +248,7 @@ type PreStatement = StatementA (Kind, Text)
 
 data ResourceKind = Resource | StopStatement | IgnorableRes
 
---  Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive
+--  Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom
 
 resourceKind :: Kind -> ResourceKind
 resourceKind Definition = Resource
@@ -278,22 +262,42 @@ resourceKind Library = IgnorableRes -- think of this
 resourceKind Module = StopStatement
 resourceKind Section = StopStatement
 resourceKind Inductive = Resource
+resourceKind Axiom = Resource
 
 
+-- TODO: deal with multiple declarations without dots like
+-- Variale a b: X.
+-- Remove vernac comments
 loadVernacCode :: String -> Int -> Maybe Int -> IO Code
 loadVernacCode vfname pos1 (Just pos2) = do
                                      h <- openBinaryFile vfname ReadMode                                    
-                                     hSeek h AbsoluteSeek (fromIntegral pos1)
-                                     let sz = pos2-pos1+1
+                                     hSeek h AbsoluteSeek (fromIntegral pos1)                                     
+                                     let seekBackDot n = do
+                                                        bs <- DBS.hGet h 1
+                                                        -- seeking was at pos1 - (n-1)
+                                                        if (TE.decodeUtf8 bs == ".") then return (n-1)
+                                                        else do
+                                                           -- putStrLn $ show n
+                                                           if (pos1 >= n) then do  
+                                                              hSeek h AbsoluteSeek (fromIntegral $ pos1 - n)
+                                                              seekBackDot (n+1)
+                                                           else do
+                                                              hSeek h AbsoluteSeek 0
+                                                              return n
+                                     n <- seekBackDot 1 
+                                     let sz = pos2 - pos1 + 1 + n 
                                      -- buf <- mallocBytes sz :: IO (Ptr Word8)
                                      -- n <- hGetBuf h buf sz
                                      -- bs <- unsafePackCStringFinalizer buf sz (free buf)
-                                     if (sz >0) then do 
+                                     if (sz > 0) then do 
                                         bs <- DBS.hGet h sz
-                                        return $ CoqText $ TE.decodeUtf8 bs
+                                        return $ CoqText $ DT.pack $ DL.dropWhileEnd (\c -> c/='.') $ trim $ DT.unpack $ TE.decodeUtf8 bs
                                      else
                                         return $ CoqText ""
-loadVernacCode vfname pos1 Nothing = return $ CoqText "not implemented"
+loadVernacCode vfname pos1 Nothing = do
+                                       h <- openBinaryFile vfname ReadMode
+                                       lastpos <- hFileSize h
+                                       loadVernacCode vfname pos1 (Just $ fromIntegral $ lastpos - 1)
 
 fromGlobFileRawEntry :: GlobFileName -> GlobFileRawEntry -> Maybe (Int, PreStatement)
 fromGlobFileRawEntry lib r = case (resourceKind $ ekind r) of
@@ -369,10 +373,47 @@ GlobFileRawEntry {espos:: Int, eepos:: Int, ekind:: Kind, elibname:: String, emo
 data StatementA a = Statement { name :: Text, kind :: Kind, code :: Code, uses :: [a]} deriving (Eq, Show, Generic)
 --}
 
+spanEnd :: (a -> Bool) -> [a] -> ([a], [a])
+spanEnd p l = let (l1,l2) = DL.span p $ DL.reverse l in
+              (DL.reverse l2, DL.reverse l1)
 
+-- NB!: if used constructor is declared inside internal module
+-- need to look upper 
+rereferInductives:: [PreStatement] -> [PreStatement]
+rereferInductives sts = let m = Map.fromList $ DL.map (\s -> (name s, s)) sts in
+                        let sts' = DL.map (\s -> s {uses = DL.map (\u ->
+                                   let look st = let mref = Map.lookup st m in
+                                                 case mref of
+                                                   Nothing -> let (mod, name) = spanEnd (\c -> c/='.') $ DT.unpack st in
+                                                              if (Prelude.null mod) then Nothing
+                                                              else 
+                                                                 let mod' = DL.dropWhileEnd (\c -> c/='.') $ DL.init mod in
+                                                              let st' = DT.pack $ mod' ++ name in
+                                                              if (st' == "") then Nothing
+                                                                  else look st'
+                                                   Just ref -> Just ref
+                                   in let mref = look (snd u) in
+                                   case mref of
+                                     Nothing -> u
+                                     Just ref -> (fst u, name ref)
+                               ) $ uses s}) sts in
+                        DL.map (\s -> s {uses = DL.map (\u -> if (fst u == Constructor) then
+                                                           let mcons = Map.lookup (snd u) m in
+                                                           case mcons of
+                                                             Nothing -> u                                                             
+                                                             Just cons -> if (Prelude.null $ uses cons) then u
+                                                                          else Prelude.head $ uses cons
+                                                              else u) $ uses s}) sts'
+
+-- removes dublicates
+-- removes dublicates in "uses"
+-- removes self-referencing from "uses"
+-- removes Variables from "uses" as they are referenced as Axioms
+-- removes Constructors as Statements
 adjustStatements :: [PreStatement] -> [PreStatement]
-adjustStatements sts = DL.nubBy eqStatement $
-                       DL.map (\s -> s{uses = DL.filter (\u -> u /= (kind s, name s)) $ DL.nub $ uses s} ) sts
+adjustStatements sts = DL.reverse $ DL.filter (\s -> kind s /= Constructor) $ DL.nubBy eqStatement $
+                       DL.map (\s -> s{uses = DL.filter (\u -> u /= (kind s, name s) && fst u /= Variable) $ DL.nub $ uses s} ) $
+                       rereferInductives sts
 
 extractStatements :: [String] -> [Statement] -> IO [Statement]
 extractStatements [] acc = return acc
