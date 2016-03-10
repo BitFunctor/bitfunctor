@@ -1,34 +1,6 @@
-(* name: (type, nat) *)
-(* uses: "" *)
-
-(*Inductive nat :=  
-| O: nat 
-| S: nat -> nat.*)
-
-(* name: (type, natlist) *)
-(* uses: (type, nat) *)
-
-
 Require Import List.
-
-(*
-Definition natge := 
-fix natge (a b : nat) {struct a} : bool :=
-  let (n, n0) := (a, b) in
-  match n with
-  | 0 => match n0 with
-         | 0 => true
-         | S _ => false
-         end
-  | S a' => match n0 with
-            | 0 => true
-            | S b' => natge a' b'
-            end
-  end.
-*)
-
-
 Require Import Nats.
+Require Import omega.Omega.
   
 Module M11.
 
@@ -48,36 +20,17 @@ End S21.
 
 End M11.
 
-Definition natlist := M11.natlist.
+Lemma twofour: 2+2=4.
+Proof.
+ omega.
+Qed.
 
-(*Inductive natlist := 
-| nil: natlist
-| cons: nat -> natlist -> natlist.*)
+Definition natlist := M11.natlist.
 
 Lemma foo: forall (n:M11.M12.R145), n=n.
 Proof.
 intros. reflexivity.
 Qed.
-(*
-Inductive bool :=
-| true: bool
-| false: bool.*)
-
-(*Fixpoint natgt (a b: nat) : bool :=
-match (a, b) with
-| (O, O) =>  false
-| (S _, O) =>  true
-| (O, S _) => false
-| (S a', S b') => natgt a' b'
-end.
-
-Fixpoint natge (a b: nat) : bool :=
-match (a, b) with
-| (O, O) =>  true
-| (S _, O) =>  true
-| (O, S _) => false
-| (S a', S b') => natge a' b'
-end.*)
 
 Fixpoint insert (n:nat) (ms : natlist) {struct ms} : natlist :=
 match ms with
@@ -88,8 +41,6 @@ match ms with
                 end
 end.
 
-(* name: simplesort *)
-(* uses: (type, nat) *)
 Fixpoint sort (ms : natlist) : natlist :=
 match ms with
 | nil => nil
@@ -101,7 +52,7 @@ Notation "x :: l" := (cons x l) (at level 60, right associativity).
 Notation "[]" := nil.
 Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
-(*Eval compute in sort (7::2::3::1::nil).*)
+Definition ll := [1,2,3].
 
 Definition head (a: nat) (l: natlist) : nat :=
 match l with
@@ -161,13 +112,20 @@ Proof.
  apply insert_sorted. auto.
 Qed.
 
+Print sort_sorted.
+Check sort_sorted.
+
+Print head.
+
+Print list.
+Check list.
 
 
+Print bool.
 
+Print false.
 
+Print plus.
 
- 
-
-
-
+Check plus.
 

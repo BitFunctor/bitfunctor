@@ -36,6 +36,9 @@ import qualified Data.List as DL
 import Foreign.Marshal.Alloc (mallocBytes, free)
 import qualified Data.ByteString as DBS (hGet)
 import qualified Data.Map as Map
+import Data.Maybe (catMaybes)
+import qualified Data.String.Utils as SU (strip, split, replace, join)
+import Data.Foldable (foldlM)
 
 data HashAlgorithm a =>
      Hash a = Hash (Digest a)
@@ -64,6 +67,9 @@ hash = Hash . H.hash
 
 data Code = CoqText Text
             deriving (Eq, Show, Generic)
+
+fromCode :: Code -> Text
+fromCode (CoqText t) = t 
 
 data Kind = Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom
             deriving (Eq, Show, Generic)
@@ -127,9 +133,10 @@ class Identifiable a where
   id :: a -> Hash Id
 
 data StatementA a = Statement { name :: Text
-                           , kind :: Kind
-                           , code :: Code
-                           , uses :: [a]
+                              , kind :: Kind
+                              , code :: Code
+                              , source:: Hash Id
+                              , uses :: [a]
                            } deriving (Eq, Show, Generic)
 
 type Statement = StatementA (Hash Id)
@@ -139,14 +146,19 @@ instance Binary Statement where
            put (name s)
            put (kind s)
            put (code s)
+           put (source s)
            put (uses s)
   get = do n <- get
            k <- get
            c <- get
+           sc <- get
            u <- get
-           return $ Statement n k c u
+           return $ Statement n k c sc u
 
 instance Identifiable Statement where
+  id = hash . toStrict . Binary.encode
+
+instance Identifiable Text where
   id = hash . toStrict . Binary.encode
 
 instance Identifiable Kind where
@@ -190,11 +202,12 @@ globfileIdent = do
                        <|> do {string "<>" ; return ""}
                  return $ trim i
 
-globfileNot = many1 (letter <|> digit <|> oneOf ".<>[]'_,:=/\\") >>= return . trim
+globfileNot = many1 (letter <|> digit <|> oneOf ".<>[]'_,:=/\\+(){}") >>= return . trim
 
-trim = f . f
-       where f = Prelude.reverse . Prelude.dropWhile isSpace
+--trim = f . f
+--       where f = Prelude.reverse . Prelude.dropWhile isSpace
 
+trim = SU.strip
 
 globfileStatement = do
                      kind <-      do {try (string "def"); return Definition}
@@ -247,13 +260,14 @@ globfileResource =  do
 type PreStatement = StatementA (Kind, Text)
 
 data ResourceKind = Resource | StopStatement | IgnorableRes
+                    deriving (Eq, Show, Generic)
 
 --  Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom
 
 resourceKind :: Kind -> ResourceKind
 resourceKind Definition = Resource
 resourceKind Theorem = Resource
-resourceKind Notation = Resource
+resourceKind Notation = IgnorableRes -- Resource cannot print them ATM 
 resourceKind Tactic = Resource
 resourceKind Variable = Resource
 resourceKind Constructor = Resource
@@ -310,7 +324,7 @@ fromGlobFileRawEntry lib r = case (resourceKind $ ekind r) of
                               if (Prelude.null sn) then Nothing
                                   else   
                                     let fqn = DT.pack $ pref ++ "." ++ sn in
-                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") [])
+                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") (StatementExtraction.id $ DT.pack "") [])
                            StopStatement -> Nothing
                            IgnorableRes -> Nothing
 
@@ -365,6 +379,7 @@ collectStatements0 (s:ss) vfname libname Nothing _ accs =
 collectStatements sts vfname libname = collectStatements0 sts vfname libname Nothing Nothing []
 
 
+-- think of kind
 eqStatement :: PreStatement -> PreStatement -> Bool
 eqStatement s1 s2 = (name s1 == name s2) && (kind s1 == kind s2)
 
@@ -411,11 +426,82 @@ rereferInductives sts = let m = Map.fromList $ DL.map (\s -> (name s, s)) sts in
 -- removes Variables from "uses" as they are referenced as Axioms
 -- removes Constructors as Statements
 adjustStatements :: [PreStatement] -> [PreStatement]
-adjustStatements sts = DL.reverse $ DL.filter (\s -> kind s /= Constructor) $ DL.nubBy eqStatement $
+adjustStatements sts = DL.filter (\s -> kind s /= Constructor) $ DL.nubBy eqStatement $
                        DL.map (\s -> s{uses = DL.filter (\u -> u /= (kind s, name s) && fst u /= Variable) $ DL.nub $ uses s} ) $
                        rereferInductives sts
 
-extractStatements :: [String] -> [Statement] -> IO [Statement]
+-- data StatementA a = Statement { name :: Text, kind :: Kind, code :: Code, uses :: [a]} deriving (Eq, Show, Generic)
+-- ((name, code), filename)
+preStatementPair :: PreStatement -> (String, String)
+preStatementPair ps = -- ((snd $ spanEnd (\c -> c /= '.') $ DT.unpack $ name ps,
+                          (DT.unpack $ fromCode $ code ps,
+                          fst $ DL.span (\c -> c /= '.') $ DT.unpack $ name ps)
+                             
+
+-- (filecontext, statement, filename)
+generateUnresolvedFile:: Kind -> Text -> Map.Map Text PreStatement -> [(String, Text, String)] -> IO (Maybe (String, Text, String))
+generateUnresolvedFile k sts thm filem = if (Map.member sts thm) || (resourceKind k /= Resource) then return Nothing
+                                         else do
+                                       let fqstname = DT.unpack sts
+                                       let sname = "SE" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $ StatementExtraction.id sts) 
+                                       let fwname = "W" ++ sname ++ ".v"
+                                       let frname = "R" ++ sname ++ ".v"
+                                       let (modname, stname) = spanEnd (\c -> c/='.') fqstname
+                                       writeFile fwname ("Require Import " ++ modname ++ "\nPrint " ++ fqstname ++ ".")
+                                       (ec, s1, _) <- readProcessWithExitCode "coqc" [fwname] []
+                                       case ec of
+                                         ExitFailure _ -> do
+                                                   putStrLn ("Error in coqc: " ++ fwname)
+                                                   return Nothing
+                                         ExitSuccess ->	 do
+                                                   -- putStrLn ("coqc output:\n" ++ s1)
+                                                   let header = "Require Import " ++ modname ++ "\n"                  
+                                                   let prebody = trim $ Prelude.head $ SU.split "\n\n" s1
+                                                   let body =  (if (k == Definition) || (k == Theorem) then
+                                                                "Definition " ++ (SU.join "\n" $
+                                                                 (\sl -> ((SU.replace "=" ":=" $ Prelude.head sl):(Prelude.tail sl)))
+                                                                 -- incorrect - remove all the type
+                                                                 (SU.split "\n" $ trim $ fst $ spanEnd (\c -> c /= '\n') prebody))
+                                                               else prebody) ++ "."
+                                                   let newst = header ++ body
+                                                   let mfile = Map.lookup newst $ Map.fromList $
+                                                               DL.map (\(fc, st, fn) -> (fc, (st, fn))) filem
+                                                   case mfile of
+                                                     Just (_, f) -> return $ Just (newst, sts, f)
+                                                     Nothing -> do
+                                                                  -- putStrLn $ "Not found." 
+                                                                  writeFile frname newst
+                                                                  return $ Just (newst, sts, 'R':sname)
+                                
+
+--(a -> b -> a) -> a -> [b] -> a
+--(b -> a -> m b) -> b -> t a -> m b
+
+generateUnresolvedFiles:: [PreStatement] -> Map.Map Text PreStatement -> IO [(Text, String)]
+generateUnresolvedFiles sts thm = do                                     
+                                    mfiles <- foldlM (\fm u -> do
+                                                               mts <- generateUnresolvedFile (fst u) (snd u) thm fm
+                                                               case mts of
+                                                                 Nothing -> return fm
+                                                                 Just x -> return $ (x:fm)  
+                                                         ) [] $ DL.nub $ Prelude.concat $ DL.map uses sts
+                                    return $ Map.toList $ Map.fromList $ DL.map (\(fc, st, fn) -> (st, fn)) mfiles
+                                        
+ 
+changeStatement :: (Kind, Text) -> Map.Map Text String -> (Kind, Text)
+changeStatement (k,t) m = let newst = Map.lookup t m in
+                          let (s1,s2) = spanEnd (\c -> c/='.') $ DT.unpack t in
+                          case newst of
+                           Nothing -> (k,t)
+                           Just s -> (k, DT.pack $ s ++ "." ++ s2)
+
+extractStatements :: [String] -> [PreStatement] -> IO [PreStatement]
+-- TODO:>
+-- finally adjust  - remove all uses of the same Statement (with equal name and source hash)
+-- remove such Statement - save only one !
+-- remove all not found uses, hoping we are doing well :)
+-- convert to Statement
+-- remove temporary files (here?)
 extractStatements [] acc = return acc
 extractStatements (f:fs) acc = do
                                -- (_, Just hout, _, _) <- createProcess (proc "coqc" ["-verbose", f]) {std_out = CreatePipe}
@@ -429,12 +515,26 @@ extractStatements (f:fs) acc = do
                                                    extractStatements fs acc
                                  ExitSuccess ->	 do
                                                    putStrLn ("coqc output:\n" ++ s1)
-                                                   globfile  <- readFile gFile                                                   
+                                                   globfile  <- readFile gFile
+                                                   vText <- readFile vFile                                                  
                                                    case (parse globfileData "" globfile) of
-                                                      Left err -> putStrLn "Parse error: " >> print err
+                                                      Left err -> do
+                                                                   putStrLn "Parse error: " >> print gFile >> print err
+                                                                   extractStatements fs acc
                                                       Right (dig, lib, ent)  -> do
                                                                         -- putStrLn $ show ent
-                                                                        sts' <- collectStatements ent vFile lib
-                                                                        let sts = adjustStatements sts' 
-                                                                        putStrLn $ show sts
-                                                   return acc
+                                                                        -- TODO: read vfile before like globfile - allows to avoid IO
+                                                                        sts'' <- collectStatements ent vFile lib
+                                                                        let sts' = DL.map (\s -> s{source = StatementExtraction.id $ DT.pack vText}) sts''
+                                                                        let sts = adjustStatements sts'
+                                                                        let newacc = adjustStatements $ sts' ++ acc
+                                                                        let thm = Map.fromList $ DL.map (\s -> (name s, s)) newacc
+                                                                        newfiles <- generateUnresolvedFiles sts thm
+                                                                        -- let newfiles = DL.nub newfiles'
+                                                                        let newnames = Map.fromList newfiles
+                                                                        let newacc' = DL.map (\s -> s{uses = DL.map (\u -> changeStatement u newnames) $ uses s}) newacc
+                                                                        -- putStrLn $ show newnames
+                                                                        putStrLn $ "File " ++ f ++ " has been processed"
+                                                                        -- return []
+                                                                        extractStatements ((DL.map snd newfiles) ++ fs) newacc'
+                                      
