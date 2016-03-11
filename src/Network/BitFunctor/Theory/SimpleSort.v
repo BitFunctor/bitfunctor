@@ -1,7 +1,7 @@
 Require Import List.
 Require Import Nats.
 Require Import omega.Omega.
-  
+
 Module M11.
 
 Definition bnt := blt_nat_trans.
@@ -112,20 +112,8 @@ Proof.
  apply insert_sorted. auto.
 Qed.
 
-Print sort_sorted.
-Check sort_sorted.
 
-Print head.
-
-Print list.
-Check list.
+Print Coq.Init.Logic.eq_refl.
 
 
-Print bool.
-
-Print false.
-
-Print plus.
-
-Check plus.
 

@@ -39,6 +39,7 @@ import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import qualified Data.String.Utils as SU (strip, split, replace, join)
 import Data.Foldable (foldlM)
+import qualified Data.Time as Time (getCurrentTime)
 
 data HashAlgorithm a =>
      Hash a = Hash (Digest a)
@@ -71,7 +72,7 @@ data Code = CoqText Text
 fromCode :: Code -> Text
 fromCode (CoqText t) = t 
 
-data Kind = Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom
+data Kind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme
             deriving (Eq, Show, Generic)
 
 instance Binary Text where
@@ -84,6 +85,7 @@ instance Binary Code where
 
 -- refactoring needed
 instance Binary Kind where
+  put Unknown = putWord8 255
   put Definition = putWord8 0
   put Theorem = putWord8 1
   put Notation = putWord8 2
@@ -96,9 +98,11 @@ instance Binary Kind where
   put Section = putWord8 9
   put Inductive = putWord8 10
   put Axiom = putWord8 11
+  put Scheme = putWord8 12
   get = do
     tag_ <- getWord8
     case tag_ of
+      255 -> return Unknown
       0 -> return Definition
       1 -> return Theorem
       2 -> return Notation
@@ -111,6 +115,7 @@ instance Binary Kind where
       9 -> return Section
       10 -> return Inductive
       11 -> return Axiom
+      12 -> return Scheme
       _ -> fail "Binary_Kind_get: Kind cannot be parsed"
 
 instance Binary Id where
@@ -155,7 +160,8 @@ instance Binary Statement where
            u <- get
            return $ Statement n k c sc u
 
-instance Identifiable Statement where
+
+{-- instance Identifiable Statement where
   id = hash . toStrict . Binary.encode
 
 instance Identifiable Text where
@@ -163,6 +169,12 @@ instance Identifiable Text where
 
 instance Identifiable Kind where
   id = hash . toStrict . Binary.encode
+--}
+
+newtype ByBinary a = ByBinary a
+
+instance (Binary a) => (Identifiable (ByBinary a)) where
+  id (ByBinary x) = hash . toStrict . Binary.encode $ x
 
 
 type GlobFileDigest = String
@@ -254,6 +266,7 @@ globfileResource =  do
                            <|> do {try (string "mod");  return Module}
                            <|> do {try (string "sec");  return Section}
                            <|> do {try (string "prfax");  return Axiom}
+                           <|> do {try (string "scheme");  return Scheme}
                    newline
                    return $ GlobFileResource $ GlobFileRawEntry sbyte ebyte kind libname modname name
 
@@ -277,7 +290,8 @@ resourceKind Module = StopStatement
 resourceKind Section = StopStatement
 resourceKind Inductive = Resource
 resourceKind Axiom = Resource
-
+resourceKind Scheme =  IgnorableRes -- Resource cannot deal with schemes ATM
+resourceKind Unknown = IgnorableRes
 
 -- TODO: deal with multiple declarations without dots like
 -- Variale a b: X.
@@ -305,6 +319,7 @@ loadVernacCode vfname pos1 (Just pos2) = do
                                      -- bs <- unsafePackCStringFinalizer buf sz (free buf)
                                      if (sz > 0) then do 
                                         bs <- DBS.hGet h sz
+                                        hClose h  
                                         return $ CoqText $ DT.pack $ DL.dropWhileEnd (\c -> c/='.') $ trim $ DT.unpack $ TE.decodeUtf8 bs
                                      else
                                         return $ CoqText ""
@@ -324,7 +339,7 @@ fromGlobFileRawEntry lib r = case (resourceKind $ ekind r) of
                               if (Prelude.null sn) then Nothing
                                   else   
                                     let fqn = DT.pack $ pref ++ "." ++ sn in
-                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") (StatementExtraction.id $ DT.pack "") [])
+                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") (StatementExtraction.id $ ByBinary $  DT.pack "") [])
                            StopStatement -> Nothing
                            IgnorableRes -> Nothing
 
@@ -443,25 +458,30 @@ generateUnresolvedFile:: Kind -> Text -> Map.Map Text PreStatement -> [(String, 
 generateUnresolvedFile k sts thm filem = if (Map.member sts thm) || (resourceKind k /= Resource) then return Nothing
                                          else do
                                        let fqstname = DT.unpack sts
-                                       let sname = "SE" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $ StatementExtraction.id sts) 
-                                       let fwname = "W" ++ sname ++ ".v"
-                                       let frname = "R" ++ sname ++ ".v"
+                                       date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
+                                       let sname = "SE" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $ StatementExtraction.id $ ByBinary (show date, sts)) 
+                                       let fwPname = "WP" ++ sname ++ ".v"
+                                       let fwCname = "WC" ++ sname ++ ".v"                                       
                                        let (modname, stname) = spanEnd (\c -> c/='.') fqstname
-                                       writeFile fwname ("Require Import " ++ modname ++ "\nPrint " ++ fqstname ++ ".")
-                                       (ec, s1, _) <- readProcessWithExitCode "coqc" [fwname] []
-                                       case ec of
-                                         ExitFailure _ -> do
-                                                   putStrLn ("Error in coqc: " ++ fwname)
+                                       writeFile fwPname ("Require Import " ++ modname ++ "\nPrint " ++ fqstname ++ ".")
+                                       writeFile fwCname ("Require Import " ++ modname ++ "\nCheck " ++ fqstname ++ ".")
+                                       (ecP, s1P, _) <- readProcessWithExitCode "coqc" [fwPname] []
+                                       (ecC, s1C, _) <- readProcessWithExitCode "coqc" [fwCname] []
+                                       case (ecP, ecC) of
+                                         (ExitFailure _, _) -> do
+                                                   putStrLn ("Error in coqc: " ++ fwPname)
                                                    return Nothing
-                                         ExitSuccess ->	 do
+                                         (_, ExitFailure _)-> do
+                                                   putStrLn ("Error in coqc: " ++ fwCname)
+                                                   return Nothing
+                                         (ExitSuccess, ExitSuccess) ->	 do
                                                    -- putStrLn ("coqc output:\n" ++ s1)
                                                    let header = "Require Import " ++ modname ++ "\n"                  
-                                                   let prebody = trim $ Prelude.head $ SU.split "\n\n" s1
+                                                   let prebody = trim $ Prelude.head $ SU.split "\n\n" s1P
                                                    let body =  (if (k == Definition) || (k == Theorem) then
-                                                                "Definition " ++ (SU.join "\n" $
-                                                                 (\sl -> ((SU.replace "=" ":=" $ Prelude.head sl):(Prelude.tail sl)))
-                                                                 -- incorrect - remove all the type
-                                                                 (SU.split "\n" $ trim $ fst $ spanEnd (\c -> c /= '\n') prebody))
+                                                                let s1C' = trim s1C in
+                                                                let s1C2 = SU.join "\n" $ Prelude.tail $ SU.split "\n" s1C' in
+                                                                "Definition " ++ s1C' ++ ":=" ++ (SU.replace s1C2 "" $ SU.join "\n" $ Prelude.tail $ SU.split "\n" prebody)
                                                                else prebody) ++ "."
                                                    let newst = header ++ body
                                                    let mfile = Map.lookup newst $ Map.fromList $
@@ -469,9 +489,10 @@ generateUnresolvedFile k sts thm filem = if (Map.member sts thm) || (resourceKin
                                                    case mfile of
                                                      Just (_, f) -> return $ Just (newst, sts, f)
                                                      Nothing -> do
-                                                                  -- putStrLn $ "Not found." 
-                                                                  writeFile frname newst
-                                                                  return $ Just (newst, sts, 'R':sname)
+                                                                  -- putStrLn $ "Not found."
+                                                                  let frname = "R" ++ sname 
+                                                                  writeFile (frname ++ ".v") newst
+                                                                  return $ Just (newst, sts, frname)
                                 
 
 --(a -> b -> a) -> a -> [b] -> a
@@ -495,14 +516,35 @@ changeStatement (k,t) m = let newst = Map.lookup t m in
                            Nothing -> (k,t)
                            Just s -> (k, DT.pack $ s ++ "." ++ s2)
 
-extractStatements :: [String] -> [PreStatement] -> IO [PreStatement]
--- TODO:>
+-- seems to be ineffective
+-- refactoring and optimization is needed
 -- finally adjust  - remove all uses of the same Statement (with equal name and source hash)
 -- remove such Statement - save only one !
 -- remove all not found uses, hoping we are doing well :)
+
+finalAdjustStatements:: [PreStatement] -> [PreStatement]
+finalAdjustStatements sts = let thm = Map.fromList $ DL.map (\s -> (name s, s)) sts in
+                            let m = Map.fromList $
+                                    DL.map (\s-> ((source s, SU.join "." $ Prelude.tail $ SU.split "." $ DT.unpack $ name s), s)) sts in
+                            let news' = Map.toList m in
+                            let newthm'  = Map.fromList $ DL.map (\((_, sn), s) -> (sn, s)) news' in
+                            let newthm  = Map.fromList $ DL.map (\(_, s) -> (name s, s)) news' in
+                            let newsts = DL.map (\(_, s) -> s) news' in
+                            --  DL.filter (\u -> fst u /= Unknown)
+                            DL.map (\s -> s{uses =  DL.map
+                              (\u -> let n = SU.join "." $ Prelude.tail $ SU.split "." $ DT.unpack $ snd u in
+                                     if (Map.member (snd u) newthm) then u
+                                     else let ms' = Map.lookup n newthm' in
+                                          case ms' of
+                                           Nothing -> u -- (Unknown, snd u)
+                                           Just s' -> (fst u, name s')) $ uses s}) newsts
+                            
+
+extractStatements :: [String] -> [PreStatement] -> IO [PreStatement]
+-- TODO:>
 -- convert to Statement
 -- remove temporary files (here?)
-extractStatements [] acc = return acc
+extractStatements [] acc = return $ finalAdjustStatements acc
 extractStatements (f:fs) acc = do
                                -- (_, Just hout, _, _) <- createProcess (proc "coqc" ["-verbose", f]) {std_out = CreatePipe}
                                -- createProcess (proc "coqc" ["-verbose", f++".v"])
@@ -525,7 +567,7 @@ extractStatements (f:fs) acc = do
                                                                         -- putStrLn $ show ent
                                                                         -- TODO: read vfile before like globfile - allows to avoid IO
                                                                         sts'' <- collectStatements ent vFile lib
-                                                                        let sts' = DL.map (\s -> s{source = StatementExtraction.id $ DT.pack vText}) sts''
+                                                                        let sts' = DL.map (\s -> s{source = StatementExtraction.id $ ByBinary $ DT.pack vText}) sts''
                                                                         let sts = adjustStatements sts'
                                                                         let newacc = adjustStatements $ sts' ++ acc
                                                                         let thm = Map.fromList $ DL.map (\s -> (name s, s)) newacc
