@@ -10,7 +10,7 @@ import Control.Monad
 main = do
        args <- getArgs
        extractedStms <- SE.extractStatements args []
-       putStrLn $ show extractedStms
+       -- putStrLn $ show extractedStms
        let us = DL.nub $ concat $ DL.map SE.uses extractedStms
        let th = Map.fromList $ DL.map (\s -> (SE.name s, s)) extractedStms
        forM_ us (\u -> if (Map.member (snd u) th) then

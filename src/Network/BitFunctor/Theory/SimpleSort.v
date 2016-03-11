@@ -1,36 +1,36 @@
-Require Import List.
-Require Import Nats.
-Require Import omega.Omega.
+(* name: (type, nat) *)
+(* uses: "" *)
 
-Module M11.
+Inductive nat :=  
+| O: nat 
+| S: nat -> nat.
 
-Definition bnt := blt_nat_trans.
+(* name: (type, natlist) *)
+(* uses: (type, nat) *)
 
-Module M12.
+Inductive natlist := 
+| nil: natlist
+| cons: nat -> natlist -> natlist.
 
-Definition R145 := nat.
+Inductive bool :=
+| true: bool
+| false: bool.
 
-End M12.
+Fixpoint natgt (a b: nat) : bool :=
+match (a, b) with
+| (O, O) =>  false
+| (S _, O) =>  true
+| (O, S _) => false
+| (S a', S b') => natgt a' b'
+end.
 
-Section S21.
-
-Definition natlist := list nat.
-
-End S21. 
-
-End M11.
-
-Lemma twofour: 2+2=4.
-Proof.
- omega.
-Qed.
-
-Definition natlist := M11.natlist.
-
-Lemma foo: forall (n:M11.M12.R145), n=n.
-Proof.
-intros. reflexivity.
-Qed.
+Fixpoint natge (a b: nat) : bool :=
+match (a, b) with
+| (O, O) =>  true
+| (S _, O) =>  true
+| (O, S _) => false
+| (S a', S b') => natge a' b'
+end.
 
 Fixpoint insert (n:nat) (ms : natlist) {struct ms} : natlist :=
 match ms with
@@ -41,6 +41,8 @@ match ms with
                 end
 end.
 
+(* name: simplesort *)
+(* uses: (type, nat) *)
 Fixpoint sort (ms : natlist) : natlist :=
 match ms with
 | nil => nil
@@ -52,7 +54,7 @@ Notation "x :: l" := (cons x l) (at level 60, right associativity).
 Notation "[]" := nil.
 Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
-Definition ll := [1,2,3].
+(*Eval compute in sort (7::2::3::1::nil).*)
 
 Definition head (a: nat) (l: natlist) : nat :=
 match l with
@@ -75,7 +77,7 @@ Lemma headinsert: forall (a n:nat) (l: natlist),
 Proof.
  intros. induction l.
  simpl. left. auto.
- simpl. remember (natge n a0) as b. destruct b; auto.
+ simpl. remember (natge n n0) as b. destruct b; auto.
 Qed.
 
 Lemma natgeswap : forall (a b: nat), natge a b = false -> natge b a = true.
@@ -93,10 +95,10 @@ Proof.
  intros. induction l.
  constructor.  constructor.
  simpl. apply eqge.
- simpl. remember (natge n a) as b.
+ simpl. remember (natge n n0) as b.
  destruct b. constructor.
  inversion H. auto. inversion H.
- assert (head a (insert n l) = n \/ head a (insert n l) = (head a l)).
+ assert (head n0 (insert n l) = n \/ head n0 (insert n l) = (head n0 l)).
  apply headinsert. auto.
  inversion H4. rewrite H5. rewrite Heqb. auto.
  rewrite H5. auto.
@@ -113,7 +115,8 @@ Proof.
 Qed.
 
 
-Print Coq.Init.Logic.eq_refl.
+ 
+
 
 
 

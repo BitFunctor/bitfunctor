@@ -72,7 +72,7 @@ data Code = CoqText Text
 fromCode :: Code -> Text
 fromCode (CoqText t) = t 
 
-data Kind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme
+data Kind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef | Class
             deriving (Eq, Show, Generic)
 
 instance Binary Text where
@@ -99,6 +99,10 @@ instance Binary Kind where
   put Inductive = putWord8 10
   put Axiom = putWord8 11
   put Scheme = putWord8 12
+  put ModType = putWord8 13
+  put Instance = putWord8 14
+  put SynDef = putWord8 15
+  put Class = putWord8 16
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -116,6 +120,10 @@ instance Binary Kind where
       10 -> return Inductive
       11 -> return Axiom
       12 -> return Scheme
+      13 -> return ModType
+      14 -> return Instance
+      15 -> return SynDef
+      16 -> return Class
       _ -> fail "Binary_Kind_get: Kind cannot be parsed"
 
 instance Binary Id where
@@ -210,11 +218,11 @@ globfileName = char 'F' >> globfileIdent
 -- .<>[]'_,:=/\\
 
 globfileIdent = do
-                 i <-  many1 (letter <|> digit <|> oneOf "._")
+                 i <-  many1 (letter <|> digit <|> oneOf "._'")
                        <|> do {string "<>" ; return ""}
                  return $ trim i
 
-globfileNot = many1 (letter <|> digit <|> oneOf ".<>[]'_,:=/\\+(){}") >>= return . trim
+globfileNot = many1 (letter <|> digit <|> oneOf ".<>[]'_,:=/\\+(){}!?*-|^~&") >>= return . trim
 
 --trim = f . f
 --       where f = Prelude.reverse . Prelude.dropWhile isSpace
@@ -231,6 +239,10 @@ globfileStatement = do
                               <|> do {try (string "sec"); return Section}
                               <|> do {try (string "var"); return Variable}
                               <|> do {try (string "ax"); return Axiom}
+                              <|> do {try (string "modtype"); return ModType}
+                              <|> do {try (string "inst"); return Instance}
+                              <|> do {try (string "syndef"); return SynDef}
+                              <|> do {try (string "class"); return Class} 
                      spaces
                      sbyte <- decimal
                      mebyte <- optionMaybe (char ':' >> decimal)                                                        
@@ -263,10 +275,14 @@ globfileResource =  do
                            <|> do {try (string "constr");  return Constructor}
                            <|> do {try (string "thm");  return Theorem}
                            <|> do {try (string "lib");  return Library}
+                           <|> do {try (string "modtype");  return ModType}
                            <|> do {try (string "mod");  return Module}
                            <|> do {try (string "sec");  return Section}
                            <|> do {try (string "prfax");  return Axiom}
                            <|> do {try (string "scheme");  return Scheme}
+                           <|> do {try (string "inst");  return Instance}
+                           <|> do {try (string "syndef"); return SynDef}
+                           <|> do {try (string "class"); return Class}
                    newline
                    return $ GlobFileResource $ GlobFileRawEntry sbyte ebyte kind libname modname name
 
@@ -275,10 +291,11 @@ type PreStatement = StatementA (Kind, Text)
 data ResourceKind = Resource | StopStatement | IgnorableRes
                     deriving (Eq, Show, Generic)
 
---  Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom
+-- Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef | Class
 
 resourceKind :: Kind -> ResourceKind
 resourceKind Definition = Resource
+resourceKind Instance = Resource
 resourceKind Theorem = Resource
 resourceKind Notation = IgnorableRes -- Resource cannot print them ATM 
 resourceKind Tactic = Resource
@@ -292,6 +309,9 @@ resourceKind Inductive = Resource
 resourceKind Axiom = Resource
 resourceKind Scheme =  IgnorableRes -- Resource cannot deal with schemes ATM
 resourceKind Unknown = IgnorableRes
+resourceKind ModType = StopStatement
+resourceKind SynDef = Resource
+resourceKind Class = Resource
 
 -- TODO: deal with multiple declarations without dots like
 -- Variale a b: X.
@@ -353,9 +373,10 @@ collectStatements0 [] vfname _ (Just (pos1, cs)) mpos2  accs = do
                                                               cd <- loadVernacCode vfname pos1 mpos2  
                                                               return (cs {code = cd}:accs)
 collectStatements0 [] _ _ Nothing _  accs = return accs
-collectStatements0 (s:ss) vfname libname pcs@(Just (pos1, cs)) mpos2 accs =
+collectStatements0 (s:ss) vfname libname pcs@(Just (pos1, cs)) mpos2 accs = 
             case s of
-                GlobFileStatement r-> 
+                GlobFileStatement r-> do
+                                      -- putStrLn $ "Processing " ++ (show $ ekind r)
                                       case (ekind r, kind cs) of
                                         (Constructor, Inductive) ->                                              
                                              let pcons' = fromGlobFileRawEntry libname r in
@@ -370,26 +391,25 @@ collectStatements0 (s:ss) vfname libname pcs@(Just (pos1, cs)) mpos2 accs =
                                                let accs' = (cs {code=cd}:accs)
                                                let newpcs = fromGlobFileRawEntry libname r
                                                collectStatements0 ss vfname libname newpcs Nothing accs'                     
-                GlobFileResource r ->
-                                      case (resourceKind $ ekind r) of
-                                        StopStatement -> 
+                GlobFileResource r -> do
+                                        -- putStrLn $ "Processing " ++ (show $ ekind r)
+                                        case (resourceKind $ ekind r) of
+                                         StopStatement -> 
                                                    let newpos2 = Just $ fromMaybe ((espos r) - 1) mpos2 in
                                                    collectStatements0 ss vfname libname pcs newpos2 accs
-                                        Resource ->
+                                         Resource ->
                                                    let r' = fromGlobFileRawEntry libname r in
                                                    case r' of
                                                     Nothing -> collectStatements0 ss vfname libname pcs Nothing accs 
                                                     Just (_, rs) ->
                                                       let newpcs = Just (pos1, cs {uses = (kind rs, name rs):(uses cs)}) in
                                                       collectStatements0 ss vfname libname newpcs Nothing accs
-                                        IgnorableRes -> collectStatements0 ss vfname libname pcs Nothing accs
+                                         IgnorableRes -> collectStatements0 ss vfname libname pcs Nothing accs
 collectStatements0 (s:ss) vfname libname Nothing _ accs =
             case s of
-                GlobFileStatement r ->                                                          
-                                      let newpcs = fromGlobFileRawEntry libname r in
-                                      collectStatements0 ss vfname libname newpcs Nothing accs                     
-                GlobFileResource r ->
-                                      collectStatements0 ss vfname libname Nothing Nothing accs
+                GlobFileStatement r ->  let newpcs = fromGlobFileRawEntry libname r in
+                                        collectStatements0 ss vfname libname newpcs Nothing accs                     
+                GlobFileResource r ->   collectStatements0 ss vfname libname Nothing Nothing accs
 
 collectStatements sts vfname libname = collectStatements0 sts vfname libname Nothing Nothing []
 
@@ -454,17 +474,19 @@ preStatementPair ps = -- ((snd $ spanEnd (\c -> c /= '.') $ DT.unpack $ name ps,
                              
 
 -- (filecontext, statement, filename)
-generateUnresolvedFile:: Kind -> Text -> Map.Map Text PreStatement -> [(String, Text, String)] -> IO (Maybe (String, Text, String))
-generateUnresolvedFile k sts thm filem = if (Map.member sts thm) || (resourceKind k /= Resource) then return Nothing
+generateUnresolvedFile:: GlobFileName -> Kind -> Text -> Map.Map Text PreStatement -> [(String, Text, String)] -> IO (Maybe (String, Text, String))
+generateUnresolvedFile libname k sts thm filem = if (Map.member sts thm) || (resourceKind k /= Resource) then return Nothing
                                          else do
                                        let fqstname = DT.unpack sts
                                        date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
                                        let sname = "SE" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $ StatementExtraction.id $ ByBinary (show date, sts)) 
                                        let fwPname = "WP" ++ sname ++ ".v"
-                                       let fwCname = "WC" ++ sname ++ ".v"                                       
-                                       let (modname, stname) = spanEnd (\c -> c/='.') fqstname
-                                       writeFile fwPname ("Require Import " ++ modname ++ "\nPrint " ++ fqstname ++ ".")
-                                       writeFile fwCname ("Require Import " ++ modname ++ "\nCheck " ++ fqstname ++ ".")
+                                       let fwCname = "WC" ++ sname ++ ".v"
+                                       -- try to load the item in full context modname = libname?
+                                       putStrLn $ "Generating files for " ++ fqstname                                 
+                                       let (modname, stname) = (libname ++ ".", snd $ spanEnd (\c -> c/='.') fqstname)
+                                       writeFile fwPname ("Require Export " ++ modname ++ "\nPrint " ++ fqstname ++ ".")
+                                       writeFile fwCname ("Require Export " ++ modname ++ "\nCheck " ++ fqstname ++ ".")
                                        (ecP, s1P, _) <- readProcessWithExitCode "coqc" [fwPname] []
                                        (ecC, s1C, _) <- readProcessWithExitCode "coqc" [fwCname] []
                                        case (ecP, ecC) of
@@ -476,14 +498,21 @@ generateUnresolvedFile k sts thm filem = if (Map.member sts thm) || (resourceKin
                                                    return Nothing
                                          (ExitSuccess, ExitSuccess) ->	 do
                                                    -- putStrLn ("coqc output:\n" ++ s1)
-                                                   let header = "Require Import " ++ modname ++ "\n"                  
+                                                   let header = "Require Export " ++ modname ++ "\n"
+                                                   -- remove comments after empty line
                                                    let prebody = trim $ Prelude.head $ SU.split "\n\n" s1P
+                                                   -- remove modules name from the extracted name, which is at the first line
+                                                   let pretypename = SU.split "\n" $ trim s1C 
+                                                   let (shortname, typename) = (snd $ spanEnd (\c -> c/='.') $
+                                                                                      Prelude.head pretypename,
+                                                                                SU.join "\n" $ Prelude.tail pretypename) 
                                                    let body =  (if (k == Definition) || (k == Theorem) then
-                                                                let s1C' = trim s1C in
-                                                                let s1C2 = SU.join "\n" $ Prelude.tail $ SU.split "\n" s1C' in
-                                                                "Definition " ++ s1C' ++ ":=" ++ (SU.replace s1C2 "" $ SU.join "\n" $ Prelude.tail $ SU.split "\n" prebody)
+                                                                "Definition " ++ shortname ++ typename ++ ":=" ++
+                                                                (trim $ SU.replace typename "" $ SU.join "=" $
+                                                                 Prelude.tail $ SU.split "=" prebody)
                                                                else prebody) ++ "."
                                                    let newst = header ++ body
+                                                   putStrLn $ "Writing chunk: " ++ newst
                                                    let mfile = Map.lookup newst $ Map.fromList $
                                                                DL.map (\(fc, st, fn) -> (fc, (st, fn))) filem
                                                    case mfile of
@@ -498,10 +527,10 @@ generateUnresolvedFile k sts thm filem = if (Map.member sts thm) || (resourceKin
 --(a -> b -> a) -> a -> [b] -> a
 --(b -> a -> m b) -> b -> t a -> m b
 
-generateUnresolvedFiles:: [PreStatement] -> Map.Map Text PreStatement -> IO [(Text, String)]
-generateUnresolvedFiles sts thm = do                                     
+generateUnresolvedFiles:: GlobFileName -> [PreStatement] -> Map.Map Text PreStatement -> IO [(Text, String)]
+generateUnresolvedFiles libname sts thm = do                                     
                                     mfiles <- foldlM (\fm u -> do
-                                                               mts <- generateUnresolvedFile (fst u) (snd u) thm fm
+                                                               mts <- generateUnresolvedFile libname (fst u) (snd u) thm fm
                                                                case mts of
                                                                  Nothing -> return fm
                                                                  Just x -> return $ (x:fm)  
@@ -571,7 +600,7 @@ extractStatements (f:fs) acc = do
                                                                         let sts = adjustStatements sts'
                                                                         let newacc = adjustStatements $ sts' ++ acc
                                                                         let thm = Map.fromList $ DL.map (\s -> (name s, s)) newacc
-                                                                        newfiles <- generateUnresolvedFiles sts thm
+                                                                        newfiles <- generateUnresolvedFiles lib sts thm
                                                                         -- let newfiles = DL.nub newfiles'
                                                                         let newnames = Map.fromList newfiles
                                                                         let newacc' = DL.map (\s -> s{uses = DL.map (\u -> changeStatement u newnames) $ uses s}) newacc
