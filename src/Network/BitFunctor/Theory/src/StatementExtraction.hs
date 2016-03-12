@@ -37,9 +37,10 @@ import Foreign.Marshal.Alloc (mallocBytes, free)
 import qualified Data.ByteString as DBS (hGet)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
-import qualified Data.String.Utils as SU (strip, split, replace, join)
+import qualified Data.String.Utils as SU
 import Data.Foldable (foldlM)
 import qualified Data.Time as Time (getCurrentTime)
+import qualified System.Directory as SD (doesFileExist)
 
 data HashAlgorithm a =>
      Hash a = Hash (Digest a)
@@ -72,7 +73,7 @@ data Code = CoqText Text
 fromCode :: Code -> Text
 fromCode (CoqText t) = t 
 
-data Kind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef | Class
+data Kind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef | Class | Record | Projection | Method
             deriving (Eq, Show, Generic)
 
 instance Binary Text where
@@ -103,6 +104,9 @@ instance Binary Kind where
   put Instance = putWord8 14
   put SynDef = putWord8 15
   put Class = putWord8 16
+  put Record = putWord8 17
+  put Projection = putWord8 18
+  put Method = putWord8 19
   get = do
     tag_ <- getWord8
     case tag_ of
@@ -124,17 +128,27 @@ instance Binary Kind where
       14 -> return Instance
       15 -> return SynDef
       16 -> return Class
+      17 -> return Record
+      18 -> return Projection
+      19 -> return Method
       _ -> fail "Binary_Kind_get: Kind cannot be parsed"
 
 instance Binary Id where
-{--  put _ = putWord8 0
-  get  = do
+ put _ = putWord8 0
+ get  = do
     tag_ <- getWord8
     case tag_ of
       0 -> return undefined
-      _ -> fail "no parse" --}
+      _ -> fail "no parse"
 
-instance Binary (Digest Id)
+instance Binary (Digest Id) where
+ put _ = putWord8 0
+ get  = do
+    tag_ <- getWord8
+    case tag_ of
+      0 -> return undefined
+      _ -> fail "no parse"
+
  
 instance Binary (Hash Id) where
    put (Hash d) = put . B16.encode $ convert d
@@ -148,7 +162,7 @@ class Identifiable a where
 data StatementA a = Statement { name :: Text
                               , kind :: Kind
                               , code :: Code
-                              , source:: Hash Id
+                              , source:: String -- source filename isomorphism
                               , uses :: [a]
                            } deriving (Eq, Show, Generic)
 
@@ -222,7 +236,7 @@ globfileIdent = do
                        <|> do {string "<>" ; return ""}
                  return $ trim i
 
-globfileNot = many1 (letter <|> digit <|> oneOf ".<>[]'_,:=/\\+(){}!?*-|^~&") >>= return . trim
+globfileNot = many1 (letter <|> digit <|> oneOf ".<>[]'_,:=/\\+(){}!?*-|^~&@") >>= return . trim
 
 --trim = f . f
 --       where f = Prelude.reverse . Prelude.dropWhile isSpace
@@ -242,7 +256,10 @@ globfileStatement = do
                               <|> do {try (string "modtype"); return ModType}
                               <|> do {try (string "inst"); return Instance}
                               <|> do {try (string "syndef"); return SynDef}
-                              <|> do {try (string "class"); return Class} 
+                              <|> do {try (string "class"); return Class}
+                              <|> do {try (string "rec"); return Record}
+                              <|> do {try (string "proj"); return Projection}
+                              <|> do {try (string "meth"); return Method} 
                      spaces
                      sbyte <- decimal
                      mebyte <- optionMaybe (char ':' >> decimal)                                                        
@@ -283,6 +300,9 @@ globfileResource =  do
                            <|> do {try (string "inst");  return Instance}
                            <|> do {try (string "syndef"); return SynDef}
                            <|> do {try (string "class"); return Class}
+                           <|> do {try (string "rec"); return Record}
+                           <|> do {try (string "proj"); return Projection}
+                           <|> do {try (string "meth"); return Method}
                    newline
                    return $ GlobFileResource $ GlobFileRawEntry sbyte ebyte kind libname modname name
 
@@ -297,7 +317,7 @@ resourceKind :: Kind -> ResourceKind
 resourceKind Definition = Resource
 resourceKind Instance = Resource
 resourceKind Theorem = Resource
-resourceKind Notation = IgnorableRes -- Resource cannot print them ATM 
+resourceKind Notation = StopStatement -- Resource cannot print them ATM 
 resourceKind Tactic = Resource
 resourceKind Variable = Resource
 resourceKind Constructor = Resource
@@ -312,6 +332,9 @@ resourceKind Unknown = IgnorableRes
 resourceKind ModType = StopStatement
 resourceKind SynDef = Resource
 resourceKind Class = Resource
+resourceKind Record = Resource
+resourceKind Projection = Resource
+resourceKind Method = Resource
 
 -- TODO: deal with multiple declarations without dots like
 -- Variale a b: X.
@@ -333,10 +356,7 @@ loadVernacCode vfname pos1 (Just pos2) = do
                                                               hSeek h AbsoluteSeek 0
                                                               return n
                                      n <- seekBackDot 1 
-                                     let sz = pos2 - pos1 + 1 + n 
-                                     -- buf <- mallocBytes sz :: IO (Ptr Word8)
-                                     -- n <- hGetBuf h buf sz
-                                     -- bs <- unsafePackCStringFinalizer buf sz (free buf)
+                                     let sz = pos2 - pos1 + 1 + n                                      
                                      if (sz > 0) then do 
                                         bs <- DBS.hGet h sz
                                         hClose h  
@@ -359,7 +379,7 @@ fromGlobFileRawEntry lib r = case (resourceKind $ ekind r) of
                               if (Prelude.null sn) then Nothing
                                   else   
                                     let fqn = DT.pack $ pref ++ "." ++ sn in
-                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") (StatementExtraction.id $ ByBinary $  DT.pack "") [])
+                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") (show $ StatementExtraction.id $ ByBinary $  DT.pack "") [])
                            StopStatement -> Nothing
                            IgnorableRes -> Nothing
 
@@ -461,9 +481,10 @@ rereferInductives sts = let m = Map.fromList $ DL.map (\s -> (name s, s)) sts in
 -- removes Variables from "uses" as they are referenced as Axioms
 -- removes Constructors as Statements
 adjustStatements :: [PreStatement] -> [PreStatement]
-adjustStatements sts = DL.filter (\s -> kind s /= Constructor) $ DL.nubBy eqStatement $
-                       DL.map (\s -> s{uses = DL.filter (\u -> u /= (kind s, name s) && fst u /= Variable) $ DL.nub $ uses s} ) $
-                       rereferInductives sts
+adjustStatements sts = -- DL.filter (\s -> kind s /= Constructor) $
+                       DL.nubBy eqStatement $
+                       DL.map (\s -> s{uses = DL.filter (\u -> u /= (kind s, name s) && fst u /= Variable) $ DL.nub $ uses s}) sts
+                       -- $ rereferInductives sts
 
 -- data StatementA a = Statement { name :: Text, kind :: Kind, code :: Code, uses :: [a]} deriving (Eq, Show, Generic)
 -- ((name, code), filename)
@@ -473,74 +494,112 @@ preStatementPair ps = -- ((snd $ spanEnd (\c -> c /= '.') $ DT.unpack $ name ps,
                           fst $ DL.span (\c -> c /= '.') $ DT.unpack $ name ps)
                              
 
--- (filecontext, statement, filename)
-generateUnresolvedFile:: GlobFileName -> Kind -> Text -> Map.Map Text PreStatement -> [(String, Text, String)] -> IO (Maybe (String, Text, String))
-generateUnresolvedFile libname k sts thm filem = if (Map.member sts thm) || (resourceKind k /= Resource) then return Nothing
-                                         else do
+removeStartFromString :: String -> String -> String
+removeStartFromString [] s = s
+removeStartFromString p [] = []
+removeStartFromString pat@(p:pats) str@(s:strs) = if (isSpace p) then
+                                                     removeStartFromString pats str
+                                                  else if (isSpace s) then
+                                                     removeStartFromString pat strs
+                                                  else if (p == s) then
+                                                     removeStartFromString pats strs
+                                                  else str
+
+removeEndFromString :: String -> String -> String
+removeEndFromString pat str = DL.reverse $ removeStartFromString (DL.reverse pat) (DL.reverse str)
+
+-- (statement, filename)
+-- :: Library name -> statement kind -> statement name -> theory -> accumulated list of (statements, filenames) ->
+-- (statement name, generated (or found file))    
+generateUnresolvedFile:: GlobFileName -> Kind -> Text -> Map.Map Text PreStatement -> [(Text, String)] -> IO (Maybe (Text, String))
+generateUnresolvedFile libname k sts thm filem =
+                                    if (Map.member sts thm) || (resourceKind k /= Resource) then return Nothing
+                                    else do
                                        let fqstname = DT.unpack sts
                                        date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
-                                       let sname = "SE" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $ StatementExtraction.id $ ByBinary (show date, sts)) 
+                                       let sname = "SE" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $
+                                                    StatementExtraction.id $ ByBinary (show date, sts)) 
                                        let fwPname = "WP" ++ sname ++ ".v"
                                        let fwCname = "WC" ++ sname ++ ".v"
+                                       -- Coq.Init.Logic - loadable
+                                       -- BinNat - loadable
+                                       -- BinNat.N - not loadable
                                        -- try to load the item in full context modname = libname?
                                        putStrLn $ "Generating files for " ++ fqstname                                 
-                                       let (modname, stname) = (libname ++ ".", snd $ spanEnd (\c -> c/='.') fqstname)
-                                       writeFile fwPname ("Require Export " ++ modname ++ "\nPrint " ++ fqstname ++ ".")
-                                       writeFile fwCname ("Require Export " ++ modname ++ "\nCheck " ++ fqstname ++ ".")
+                                       let (modname, stname) =  spanEnd (\c -> c/='.') fqstname  
+                                       writeFile fwPname ("Require Export " ++ libname ++ ".\nPrint " ++ fqstname ++ ".")
+                                       -- Test Print Implicit instead of Check
+                                       writeFile fwCname ("Require Export " ++ libname ++ ".\nPrint Implicit " ++ fqstname ++ ".")
                                        (ecP, s1P, _) <- readProcessWithExitCode "coqc" [fwPname] []
                                        (ecC, s1C, _) <- readProcessWithExitCode "coqc" [fwCname] []
-                                       case (ecP, ecC) of
-                                         (ExitFailure _, _) -> do
+                                       case ecP of
+                                         ExitFailure _ -> do
                                                    putStrLn ("Error in coqc: " ++ fwPname)
                                                    return Nothing
-                                         (_, ExitFailure _)-> do
-                                                   putStrLn ("Error in coqc: " ++ fwCname)
-                                                   return Nothing
-                                         (ExitSuccess, ExitSuccess) ->	 do
-                                                   -- putStrLn ("coqc output:\n" ++ s1)
-                                                   let header = "Require Export " ++ modname ++ "\n"
+                                         -- do not check this for Notations !!!
+                                         --(_, ExitFailure _)-> do
+                                         --          putStrLn ("Error in coqc: " ++ fwCname)
+                                         --          return Nothing
+                                         ExitSuccess -> do                                                   
+                                                   let header = "Require Export " ++ libname ++ ".\n"
                                                    -- remove comments after empty line
                                                    let prebody = trim $ Prelude.head $ SU.split "\n\n" s1P
                                                    -- remove modules name from the extracted name, which is at the first line
-                                                   let pretypename = SU.split "\n" $ trim s1C 
+                                                   let pretypename = SU.split ":" $ trim $ Prelude.head $ SU.split "\n\n" s1C 
                                                    let (shortname, typename) = (snd $ spanEnd (\c -> c/='.') $
                                                                                       Prelude.head pretypename,
-                                                                                SU.join "\n" $ Prelude.tail pretypename) 
-                                                   let body =  (if (k == Definition) || (k == Theorem) then
-                                                                "Definition " ++ shortname ++ typename ++ ":=" ++
-                                                                (trim $ SU.replace typename "" $ SU.join "=" $
+                                                                                trim $ SU.join ":" $ Prelude.tail pretypename) 
+                                                   let body =  (if (k == Definition) || (k == Theorem) || (k == Method) then
+                                                                "Definition " ++ shortname ++ " : " ++ typename ++ ":=\n" ++
+                                                                (trim $ removeEndFromString (": " ++ typename) $ SU.join "=" $
                                                                  Prelude.tail $ SU.split "=" prebody)
                                                                else prebody) ++ "."
                                                    let newst = header ++ body
-                                                   putStrLn $ "Writing chunk: " ++ newst
-                                                   let mfile = Map.lookup newst $ Map.fromList $
-                                                               DL.map (\(fc, st, fn) -> (fc, (st, fn))) filem
-                                                   case mfile of
-                                                     Just (_, f) -> return $ Just (newst, sts, f)
+                                                   let idChunk = "BitFunctor" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $
+                                                                 StatementExtraction.id $ ByBinary $ modname ++ "\n" ++ body)
+                                                   let mfile = Map.lookup idChunk $ Map.fromList $
+                                                               DL.map (\(st, fn) -> (fn, st)) filem
+                                                   bFileExists <- SD.doesFileExist $ idChunk ++ ".v"
+                                                   if (bFileExists) then do
+                                                                     putStrLn ("- file already generated")
+                                                                     return $ Just (sts, idChunk)
+                                                   else  case mfile of
+                                                     Just _ -> do
+                                                                     fail "- file generated but doesn't exist" 
                                                      Nothing -> do
-                                                                  -- putStrLn $ "Not found."
-                                                                  let frname = "R" ++ sname 
-                                                                  writeFile (frname ++ ".v") newst
-                                                                  return $ Just (newst, sts, frname)
+                                                                 let thm' = Map.fromList $ DL.map (\(t,ps) -> (source ps, name ps))
+                                                                                         $ Map.toList thm    
+                                                                 let mfile2 = Map.lookup idChunk thm'
+                                                                 case mfile2 of
+                                                                   Just name -> do
+                                                                                  putStrLn ("- found in the Theory, but file doesn't exist?")  
+                                                                                  return $ Just (sts, idChunk)
+                                                                   Nothing -> do
+                                                                                let frname = idChunk ++ ".v"
+                                                                                putStrLn $ "Writing chunk from " ++ modname
+                                                                                            ++ ":\n" ++ newst
+                                                                                writeFile frname newst
+                                                                                return $ Just (sts, idChunk)
                                 
 
 --(a -> b -> a) -> a -> [b] -> a
 --(b -> a -> m b) -> b -> t a -> m b
-
+-- libname -> all new statements -> theory -> list of (sts, filenames) 
 generateUnresolvedFiles:: GlobFileName -> [PreStatement] -> Map.Map Text PreStatement -> IO [(Text, String)]
 generateUnresolvedFiles libname sts thm = do                                     
                                     mfiles <- foldlM (\fm u -> do
                                                                mts <- generateUnresolvedFile libname (fst u) (snd u) thm fm
                                                                case mts of
+                                                                 -- already in theory or impossible to generate 
                                                                  Nothing -> return fm
                                                                  Just x -> return $ (x:fm)  
                                                          ) [] $ DL.nub $ Prelude.concat $ DL.map uses sts
-                                    return $ Map.toList $ Map.fromList $ DL.map (\(fc, st, fn) -> (st, fn)) mfiles
+                                    return $ DL.nub mfiles
                                         
  
 changeStatement :: (Kind, Text) -> Map.Map Text String -> (Kind, Text)
 changeStatement (k,t) m = let newst = Map.lookup t m in
-                          let (s1,s2) = spanEnd (\c -> c/='.') $ DT.unpack t in
+                          let (s1, s2) = spanEnd (\c -> c/='.') $ DT.unpack t in
                           case newst of
                            Nothing -> (k,t)
                            Just s -> (k, DT.pack $ s ++ "." ++ s2)
@@ -569,43 +628,56 @@ finalAdjustStatements sts = let thm = Map.fromList $ DL.map (\s -> (name s, s)) 
                                            Just s' -> (fst u, name s')) $ uses s}) newsts
                             
 
-extractStatements :: [String] -> [PreStatement] -> IO [PreStatement]
+extractStatements :: [String] -> [String] -> [PreStatement] -> IO [PreStatement]
 -- TODO:>
 -- convert to Statement
 -- remove temporary files (here?)
-extractStatements [] acc = return $ finalAdjustStatements acc
-extractStatements (f:fs) acc = do
+extractStatements [] accf acc = return $ finalAdjustStatements $ rereferInductives acc
+extractStatements (fn:fs) accf acc = do
                                -- (_, Just hout, _, _) <- createProcess (proc "coqc" ["-verbose", f]) {std_out = CreatePipe}
                                -- createProcess (proc "coqc" ["-verbose", f++".v"])
-                               let vFile = f ++ ".v"
-                               let gFile = f ++ ".glob"
+                            if (DL.elem fn accf) then do
+                                                      putStrLn $ "File already processed: " ++ fn
+                                                      extractStatements fs accf acc
+                            else do
+                               let vFile = fn ++ ".v"
+                               let gFile = fn ++ ".glob"
                                (ec, s1, _) <- readProcessWithExitCode "coqc" [vFile] []
                                case ec of
                                  ExitFailure _ -> do
                                                    putStrLn ("Error in coqc: " ++ vFile)
-                                                   extractStatements fs acc
+                                                   extractStatements fs (fn:accf) acc
                                  ExitSuccess ->	 do
                                                    putStrLn ("coqc output:\n" ++ s1)
                                                    globfile  <- readFile gFile
-                                                   vText <- readFile vFile                                                  
+                                                   -- vText <- readFile vFile
+                                                   -- let fLine = Prelude.head $ Prelude.lines vText
+                                                   --  let digest = "(* bitfunctor id: " ++ idChunk ++ " *)"
+                                                   -- let mdig = if (SU.startswith "(* bitfunctor id: " fLine &&
+                                                   --           SU.endswith " *)" fLine) then SU.replace "(* bitfunctor id: " ""$
+                                                   --                                         SU.replace " *)" "" fLine
+                                                   --        else ""
+                                                   -- if (mdig /= fd) then fail $ "File signature incorrect: " ++ vFile
+                                                   -- else 
                                                    case (parse globfileData "" globfile) of
-                                                      Left err -> do
+                                                       Left err -> do
                                                                    putStrLn "Parse error: " >> print gFile >> print err
-                                                                   extractStatements fs acc
-                                                      Right (dig, lib, ent)  -> do
-                                                                        -- putStrLn $ show ent
-                                                                        -- TODO: read vfile before like globfile - allows to avoid IO
-                                                                        sts'' <- collectStatements ent vFile lib
-                                                                        let sts' = DL.map (\s -> s{source = StatementExtraction.id $ ByBinary $ DT.pack vText}) sts''
-                                                                        let sts = adjustStatements sts'
-                                                                        let newacc = adjustStatements $ sts' ++ acc
-                                                                        let thm = Map.fromList $ DL.map (\s -> (name s, s)) newacc
-                                                                        newfiles <- generateUnresolvedFiles lib sts thm
-                                                                        -- let newfiles = DL.nub newfiles'
-                                                                        let newnames = Map.fromList newfiles
-                                                                        let newacc' = DL.map (\s -> s{uses = DL.map (\u -> changeStatement u newnames) $ uses s}) newacc
-                                                                        -- putStrLn $ show newnames
-                                                                        putStrLn $ "File " ++ f ++ " has been processed"
-                                                                        -- return []
-                                                                        extractStatements ((DL.map snd newfiles) ++ fs) newacc'
+                                                                   extractStatements fs (fn:accf) acc
+                                                       Right (dig, lib, ent)  -> do
+                                                                   sts'' <- collectStatements ent vFile lib
+                                                                   let sts' = DL.map (\s -> s{source = fn}) sts''
+                                                                   let sts = adjustStatements sts'
+                                                                   -- putStrLn $ "Found:\n" ++ (show sts'')
+                                                                   let newacc = adjustStatements $ sts' ++ acc
+                                                                   let thm = Map.fromList $ DL.map (\s -> (name s, s)) newacc
+                                                                   -- (sts, fn)
+                                                                   newfiles <- generateUnresolvedFiles lib sts thm
+                                                                   let newnames = Map.fromList newfiles
+                                                                   let newacc' = adjustStatements $ DL.map (\s -> s{uses = DL.map (\u -> changeStatement u newnames) $ uses s}) newacc
+                                                                   -- putStrLn $ "Change to:\n" ++ (show newnames)
+                                                                   let newfiles' = DL.nub $ (DL.map snd newfiles) ++ fs
+                                                                   -- putStrLn $ show newacc' 
+                                                                   putStrLn $ "File " ++ fn ++ " has been processed, remaining " ++ (show $ DL.length newfiles')
+                                                                   -- return []
+                                                                   extractStatements newfiles' (fn:accf) newacc'
                                       
