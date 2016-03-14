@@ -1,8 +1,13 @@
 module Network.BitFunctor.Transaction ( Transaction (..)
+                                      , TxInput (..)
+                                      , TxInputType (..)
+                                      , TxOutput (..)
                                       , TransactionHash
                                       , sign
                                       , verify
                                       , value
+                                      , from
+                                      , to
                                       , validateHeader
                                       ) where
 
@@ -15,19 +20,29 @@ import Network.BitFunctor.Token (BTF (..), (+.))
 
 
 sign :: Account -> Transaction -> Maybe Transaction
-sign acc tx@(Transaction {sender = s}) | s == toAccountId acc = do
-  sk <- secKey acc
-  let pk = pubKey acc
-  return tx { signature = C.sign sk pk (signEncode tx) }
-sign acc tx = Nothing
+sign acc tx = case (sender $ input tx) == toAccountId acc of
+                True  -> do
+                  sk <- secKey acc
+                  let pk = pubKey acc
+                  return tx { signature = C.sign sk pk (signEncode tx) }
+                False -> Nothing
+
 
 verify :: Transaction -> Bool
-verify tx = C.verify (pubKey . fromAccountId $ sender tx)
+verify tx = C.verify (pubKey . fromAccountId . sender $ input tx)
                      (signEncode tx) $ signature tx
 
 
 value :: Transaction -> BTF
-value tx = amount tx +. fee tx
+value tx = fee tx +. case inputType $ input tx of
+                       Value { amount = amnt } -> amnt
+                       _ -> BTF 0
+
+from :: Transaction -> AccountId
+from = sender . input
+
+to :: Transaction -> AccountId
+to = recipient . output
 
 validateHeader :: Transaction -> Bool
 validateHeader tx = worthwhile && signatureValid
