@@ -28,15 +28,6 @@ import Data.Binary as Binary (Binary(..), encode)
 import Data.ByteString.Lazy (toStrict)
 
 
---data Transaction = Transaction { sender    :: AccountId
---                               , recipient :: AccountId
---                               , amount    :: BTF
---                               , fee       :: BTF
---                               , timestamp :: UTCTime
---                               , payload   :: TheoryPayload
---                               , signature :: Signature
---                               } deriving (Show, Eq, Generic)
-
 data TxInput = TxInput { sender    :: AccountId
                        , inputType :: TxInputType
                        } deriving (Show, Eq, Generic)
