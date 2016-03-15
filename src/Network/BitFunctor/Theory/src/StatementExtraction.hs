@@ -549,7 +549,7 @@ generateUnresolvedFile libname k sts thm filem =
                                                    let (shortname, typename) = (snd $ spanEnd (\c -> c/='.') $
                                                                                       Prelude.head pretypename,
                                                                                 trim $ SU.join ":" $ Prelude.tail pretypename) 
-                                                   let body =  (if (k == Definition) || (k == Theorem) || (k == Method) then
+                                                   let body =  (if (k == Definition) || (k == Theorem) || (k == Method) || (k == Class) then
                                                                 "Definition " ++ shortname ++ " : " ++ typename ++ ":=\n" ++
                                                                 (trim $ removeEndFromString (": " ++ typename) $ SU.join "=" $
                                                                  Prelude.tail $ SU.split "=" prebody)
