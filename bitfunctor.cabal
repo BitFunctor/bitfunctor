@@ -29,6 +29,7 @@ library
                        Network.BitFunctor.State.Ledger,
                        Network.BitFunctor.Theory.Complexity,
                        Network.BitFunctor.Theory.Types,
+                       Network.BitFunctor.Theory.Coq.StatementExtraction,
                        Network.BitFunctor.Token,
                        Network.BitFunctor.Transaction,
                        Network.BitFunctor.Transaction.Types
@@ -41,7 +42,12 @@ library
                        time >= 1.5.0.1,
                        cryptonite >= 0.9,
                        memory >= 0.10,
-                       binary >= 0.7.6.1
+                       binary >= 0.7.6.1,
+                       directory,
+                       MissingH,
+                       parsec,
+                       parsec-numbers,
+                       process
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -60,8 +66,8 @@ test-suite tests
   hs-source-dirs:      test/src
   default-language:    Haskell2010
 
-executable se_run
-  main-is:             se_run.hs
+executable coqxtractor
+  main-is:             coqxtractor.hs
   build-depends:       base,
                        bitfunctor,
                        bytestring,
@@ -78,5 +84,5 @@ executable se_run
                        parsec-numbers,
                        MissingH,
                        directory
-  hs-source-dirs:      src/Network/BitFunctor/Theory/src
+  hs-source-dirs:      test/src
   default-language:    Haskell2010

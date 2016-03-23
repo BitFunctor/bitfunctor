@@ -3,23 +3,10 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module StatementExtraction where
+module Network.BitFunctor.Theory.Coq.StatementExtraction  where
 
 import Data.Text as DT
-import Data.Binary
-import Data.ByteArray
-import qualified Crypto.PubKey.Ed25519 as Ed25519
-import Data.Aeson
-import Data.ByteArray (convert)
-import GHC.Generics
-import qualified Data.ByteString.Base16 as B16 (encode, decode)
 import qualified Data.Text.Encoding as TE
-import qualified Crypto.Hash as H (hash, digestFromByteString)
-import Crypto.Hash.Algorithms (HashAlgorithm, Keccak_256)
-import Crypto.Hash (Digest)
-import qualified Data.Text.Encoding as TE
-import Data.Binary as Binary (Binary(..), encode)
-import Data.ByteString.Lazy (toStrict)
 
 {-- imported from other sources --}
 
@@ -42,161 +29,9 @@ import Data.Foldable (foldlM)
 import qualified Data.Time as Time (getCurrentTime)
 import qualified System.Directory as SD (doesFileExist)
 
-data HashAlgorithm a =>
-     Hash a = Hash (Digest a)
-              deriving (Eq, Ord, Show)
-
-instance (HashAlgorithm a) => ToJSON (Hash a) where
-  toJSON (Hash d) = String . TE.decodeUtf8 . B16.encode $ convert d
-
-
-type SecretKey = Ed25519.SecretKey
-type PublicKey = Ed25519.PublicKey
-type Signature = Ed25519.Signature
-
-
-instance ToJSON PublicKey where
-  toJSON = String . TE.decodeUtf8 . B16.encode . convert
-
-instance ToJSON Signature where
-  toJSON = String . TE.decodeUtf8 . B16.encode . convert
-
-
-type Id = Keccak_256
-
-hash :: (ByteArrayAccess ba, HashAlgorithm a) => ba -> Hash a
-hash = Hash . H.hash
-
-data Code = CoqText Text
-            deriving (Eq, Show, Generic)
-
-fromCode :: Code -> Text
-fromCode (CoqText t) = t 
-
-data Kind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef | Class | Record | Projection | Method
-            deriving (Eq, Show, Generic)
-
-instance Binary Text where
-  put = put . DT.unpack
-  get = get >>= return . DT.pack
-
-instance Binary Code where
-  put (CoqText a) = put a
-  get = get >>= \a -> return (CoqText a)
-
--- refactoring needed
-instance Binary Kind where
-  put Unknown = putWord8 255
-  put Definition = putWord8 0
-  put Theorem = putWord8 1
-  put Notation = putWord8 2
-  put Tactic = putWord8 3
-  put Variable = putWord8 4
-  put Constructor = putWord8 5
-  put Proof = putWord8 6
-  put Library = putWord8 7
-  put Module = putWord8 8
-  put Section = putWord8 9
-  put Inductive = putWord8 10
-  put Axiom = putWord8 11
-  put Scheme = putWord8 12
-  put ModType = putWord8 13
-  put Instance = putWord8 14
-  put SynDef = putWord8 15
-  put Class = putWord8 16
-  put Record = putWord8 17
-  put Projection = putWord8 18
-  put Method = putWord8 19
-  get = do
-    tag_ <- getWord8
-    case tag_ of
-      255 -> return Unknown
-      0 -> return Definition
-      1 -> return Theorem
-      2 -> return Notation
-      3 -> return Tactic
-      4 -> return Variable
-      5 -> return Constructor
-      6 -> return Proof
-      7 -> return Library
-      8 -> return Module
-      9 -> return Section
-      10 -> return Inductive
-      11 -> return Axiom
-      12 -> return Scheme
-      13 -> return ModType
-      14 -> return Instance
-      15 -> return SynDef
-      16 -> return Class
-      17 -> return Record
-      18 -> return Projection
-      19 -> return Method
-      _ -> fail "Binary_Kind_get: Kind cannot be parsed"
-
-instance Binary Id where
- put _ = putWord8 0
- get  = do
-    tag_ <- getWord8
-    case tag_ of
-      0 -> return undefined
-      _ -> fail "no parse"
-
-instance Binary (Digest Id) where
- put _ = putWord8 0
- get  = do
-    tag_ <- getWord8
-    case tag_ of
-      0 -> return undefined
-      _ -> fail "no parse"
-
- 
-instance Binary (Hash Id) where
-   put (Hash d) = put . B16.encode $ convert d
-   get = get >>= \a -> return (Hash a)
-
-{----------------------------------------------------------}
-
-class Identifiable a where
-  id :: a -> Hash Id
-
-data StatementA a = Statement { name :: Text
-                              , kind :: Kind
-                              , code :: Code
-                              , source:: String -- source filename isomorphism
-                              , uses :: [a]
-                           } deriving (Eq, Show, Generic)
-
-type Statement = StatementA (Hash Id)
-
-instance Binary Statement where
-  put s = do
-           put (name s)
-           put (kind s)
-           put (code s)
-           put (source s)
-           put (uses s)
-  get = do n <- get
-           k <- get
-           c <- get
-           sc <- get
-           u <- get
-           return $ Statement n k c sc u
-
-
-{-- instance Identifiable Statement where
-  id = hash . toStrict . Binary.encode
-
-instance Identifiable Text where
-  id = hash . toStrict . Binary.encode
-
-instance Identifiable Kind where
-  id = hash . toStrict . Binary.encode
---}
-
-newtype ByBinary a = ByBinary a
-
-instance (Binary a) => (Identifiable (ByBinary a)) where
-  id (ByBinary x) = hash . toStrict . Binary.encode $ x
+import qualified Network.BitFunctor.Crypto.Hash as Hash
+import Network.BitFunctor.Theory.Types
+import qualified Network.BitFunctor.Identifiable as Ident
 
 
 type GlobFileDigest = String
@@ -205,13 +40,13 @@ type GlobFileName = String
 
 data GlobFileRawEntry = GlobFileRawEntry {espos:: Int,
                                     eepos:: Int,
-                                    ekind:: Kind,
+                                    ekind:: CoqKind,
                                     elibname:: String,
                                     emodname:: String,
-                                    ename:: String} deriving (Eq, Show, Generic)
+                                    ename:: String} deriving (Eq, Show)
 
 data GlobFileEntry = GlobFileResource GlobFileRawEntry | GlobFileStatement GlobFileRawEntry
-                     deriving (Eq, Show, Generic)
+                     deriving (Eq, Show)
 
 type GlobFileData = (GlobFileDigest, GlobFileName, [GlobFileEntry])
 
@@ -306,14 +141,14 @@ globfileResource =  do
                    newline
                    return $ GlobFileResource $ GlobFileRawEntry sbyte ebyte kind libname modname name
 
-type PreStatement = StatementA (Kind, Text)
+type PreStatement = StatementA (CoqKind, Text)
 
 data ResourceKind = Resource | StopStatement | IgnorableRes
-                    deriving (Eq, Show, Generic)
+                    deriving (Eq, Show)
 
 -- Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof | Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef | Class
 
-resourceKind :: Kind -> ResourceKind
+resourceKind :: CoqKind -> ResourceKind
 resourceKind Definition = Resource
 resourceKind Instance = Resource
 resourceKind Theorem = Resource
@@ -379,7 +214,7 @@ fromGlobFileRawEntry lib r = case (resourceKind $ ekind r) of
                               if (Prelude.null sn) then Nothing
                                   else   
                                     let fqn = DT.pack $ pref ++ "." ++ sn in
-                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") (show $ StatementExtraction.id $ ByBinary $  DT.pack "") [])
+                                    Just ((espos r), Statement fqn (ekind r) (CoqText "") (show $ Ident.id $ Ident.ByBinary $  DT.pack "") [])
                            StopStatement -> Nothing
                            IgnorableRes -> Nothing
 
@@ -511,14 +346,14 @@ removeEndFromString pat str = DL.reverse $ removeStartFromString (DL.reverse pat
 -- (statement, filename)
 -- :: Library name -> statement kind -> statement name -> theory -> accumulated list of (statements, filenames) ->
 -- (statement name, generated (or found file))    
-generateUnresolvedFile:: GlobFileName -> Kind -> Text -> Map.Map Text PreStatement -> [(Text, String)] -> IO (Maybe (Text, String))
+generateUnresolvedFile:: GlobFileName -> CoqKind -> Text -> Map.Map Text PreStatement -> [(Text, String)] -> IO (Maybe (Text, String))
 generateUnresolvedFile libname k sts thm filem =
                                     if (Map.member sts thm) || (resourceKind k /= Resource) then return Nothing
                                     else do
                                        let fqstname = DT.unpack sts
                                        date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
                                        let sname = "SE" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $
-                                                    StatementExtraction.id $ ByBinary (show date, sts)) 
+                                                    Ident.id $ Ident.ByBinary (show date, sts)) 
                                        let fwPname = "WP" ++ sname ++ ".v"
                                        let fwCname = "WC" ++ sname ++ ".v"
                                        -- Coq.Init.Logic - loadable
@@ -556,7 +391,7 @@ generateUnresolvedFile libname k sts thm filem =
                                                                else prebody) ++ "."
                                                    let newst = header ++ body
                                                    let idChunk = "BitFunctor" ++ (trim $ DL.dropWhile (\c -> c/=' ') $ show $
-                                                                 StatementExtraction.id $ ByBinary $ modname ++ "\n" ++ body)
+                                                                  Ident.id $ Ident.ByBinary $ modname ++ "\n" ++ body)
                                                    let mfile = Map.lookup idChunk $ Map.fromList $
                                                                DL.map (\(st, fn) -> (fn, st)) filem
                                                    bFileExists <- SD.doesFileExist $ idChunk ++ ".v"
@@ -597,7 +432,7 @@ generateUnresolvedFiles libname sts thm = do
                                     return $ DL.nub mfiles
                                         
  
-changeStatement :: (Kind, Text) -> Map.Map Text String -> (Kind, Text)
+changeStatement :: (CoqKind, Text) -> Map.Map Text String -> (CoqKind, Text)
 changeStatement (k,t) m = let newst = Map.lookup t m in
                           let (s1, s2) = spanEnd (\c -> c/='.') $ DT.unpack t in
                           case newst of
