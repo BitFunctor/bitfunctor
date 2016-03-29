@@ -1,0 +1,79 @@
+module Network.BitFunctor.Theory.Coq.Constants  where
+
+import Network.BitFunctor.Theory.Types
+import qualified Data.Map as Map
+import qualified Data.List as List
+
+-- parser constants
+
+globDigestString = "DIGEST"
+globLibChar = 'F'
+globResourceChar = 'R'
+coqIdentExtraChars = "._'"
+coqNotationExtraChars = ".<>[]'_,:=/\\+(){}!?*-|^~&@"
+globEmptySubEntryString = "<>"
+globLineNumbersDelimiter = ':'
+coqModuleDelimiter = '.'
+coqStatementDelimiter = '.'
+xtrFilePrefix = "SE"
+xtrPrintFilePrefix = "WP"
+xtrTypeFilePrefix = "WT"
+vernacFileSuffix = ".v"
+globFileSuffix = ".glob"
+coqExportString = "Require Export "
+coqImportString = "Import "
+coqPrintTermString = "Set Printing All.\nUnset Printing Universes.\nSet Printing Depth 1000.\nPrint "
+coqExecutable = "coqc"
+coqPrintCommentsDelimiter = "\n\n"
+coqTypeDelimiter = ":"
+coqDefinitionString = "Definition "
+coqPrintEqSign = "="
+coqDefSign = ":="
+generatedFilePrefix = "Bitfunctor"
+nullLibString = ("" :: String )
+
+coqDefineTerm s t b = coqDefinitionString ++ s ++ coqTypeDelimiter ++ t ++ coqDefSign ++ b ++ [coqStatementDelimiter]
+
+coqExportLib "" = ""
+coqExportLib l = coqExportString ++ l ++ ".\n"
+
+coqPrintTerm "" = ""
+coqPrintTerm t = coqPrintTermString ++ t ++ ".\n"
+
+coqPrintType "" = ""
+coqPrintType t = coqPrintTermString ++ "Implicit " ++ t ++ ".\n"
+
+coqImportMod "" = ""
+coqImportMod m = coqImportString ++ m ++ ".\n"
+
+-- different parser mappings
+
+globKindStrings = [("defax", (Axiom, Resource)),
+                   ("def", (Definition, Resource)),
+                   ("not", (Notation, StopStatement)),
+                   ("ind", (Inductive, Resource)),
+                   ("constr", (Constructor, Resource)),
+                   ("prfax", (Axiom, Resource)),
+                   ("prf", (Proof, Resource)),
+                   ("sec", (Section, StopStatement)),
+                   ("var", (Variable, Resource)),
+                   ("ax", (Axiom, Resource)),
+                   ("modtype", (ModType, StopStatement)),
+                   ("mod",  (Module, StopStatement)),
+                   ("inst", (Instance, Resource)),
+                   ("syndef", (SynDef, Resource)),
+                   ("class", (Class, Resource)),
+                   ("rec", (Record, Resource)),
+                   ("proj", (Projection, Resource)),
+                   ("meth", (Method, Resource)),
+                   ("thm", (Theorem, Resource)),
+                   ("lib", (Library, IgnorableRes)),
+                   ("scheme", (Scheme, IgnorableRes))]
+
+resourceKind :: CoqKind -> ResourceKind
+resourceKind k = let m = Map.fromList $ List.map snd globKindStrings in
+                 Map.findWithDefault IgnorableRes k m                           
+
+listAbnormallyPrinted = [Definition, Theorem, Method, Class, Axiom]
+
+isAbnormallyPrinted k = List.elem k listAbnormallyPrinted 
