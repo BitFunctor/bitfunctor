@@ -12,7 +12,7 @@ import System.IO
 import qualified Text.ParserCombinators.Parsec as PS (parse)
 import Data.Text as DT
 import qualified Data.Text.Encoding as TE
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 import qualified Data.List as List 
 import qualified Data.ByteString as DBS (hGet)
 import qualified Data.Map as Map
@@ -41,6 +41,8 @@ type PreTheory = Map.Map CoqStatementName PreStatement
 -- Remove vernac comments
 loadVernacCode :: String -> Int -> Maybe Int -> IO Code
 loadVernacCode vfname pos1 (Just pos2) = do
+                                     -- putStrLn $ "pos1 = " ++ (show pos1)
+                                     -- putStrLn $ "pos2 = " ++ (show pos2)
                                      h <- openBinaryFile vfname ReadMode                                    
                                      hSeek h AbsoluteSeek (fromIntegral pos1)                                     
                                      let seekBackDot n = do
@@ -59,6 +61,7 @@ loadVernacCode vfname pos1 (Just pos2) = do
                                      let sz = pos2 - pos1 + 1 + n                                      
                                      if (sz > 0) then do 
                                         bs <- DBS.hGet h sz
+                                        -- putStrLn $ "bs = " ++ (show bs)
                                         hClose h  
                                         return $ CoqText $ DT.pack $ List.dropWhileEnd (\c -> c/= Constants.coqStatementDelimiter)
                                                $ SU.strip $ DT.unpack $ TE.decodeUtf8 bs
@@ -323,6 +326,7 @@ extractStatements (fn:fs) accf acc = do
                                                                    -- let sts' = List.map (\s -> s {stsource = Ident.id $ Ident.ByBinary fn}) sts''
                                                                    let sts = adjustRecursive sts'
                                                                    let newacc = adjustRecursive $ sts ++ acc
+                                                                   -- newacc -> acc ?
                                                                    let thm = Map.fromList $ List.map (\s -> (stname s, s)) newacc
                                                                    newfiles <- generateUnresolvedFiles lib sts thm
                                                                    let newnames = Map.fromList newfiles
@@ -332,3 +336,28 @@ extractStatements (fn:fs) accf acc = do
                                                                    putStrLn $ "File " ++ fn ++ " has been processed, remaining " ++ (show $ List.length newfiles')
                                                                    extractStatements newfiles' (fn:accf) newacc'
                                       
+
+unfoldUses :: [PreStatement] -> PreTheory -> [[PreStatement]]
+unfoldUses [] _ = []
+unfoldUses (t:ts) thm = ut:(unfoldUses ts thm) where
+                        ut = let usm = catMaybes $ List.map (\u -> Map.lookup (snd u) thm) (stuses t) in
+                             List.nub $ (t:(Prelude.concat $ unfoldUses usm thm))
+
+
+ordStatement :: PreStatement -> PreStatement -> Common.PartOrdering
+ordStatement s1 s2 = if (List.elem (stname s1) (List.map snd $ stuses s2)) then Common.PLT else
+                     if (List.elem (stname s2) (List.map snd $ stuses s1)) then Common.PGT else
+                     if (stname s1 == stname s2) then Common.PEQ else
+                     Common.PNC
+
+extractTerms :: [String] -> [PreStatement] -> [[[PreStatement]]]
+extractTerms [] _ = []
+extractTerms (t:ts) sts = et:(extractTerms ts sts) where
+                          et = let fsts = List.filter (\s -> (sname $ stname s) == (DT.pack t)) sts in
+                               let m = Map.fromList $ List.map (\s -> (stname s, s)) sts in
+                               List.map (Common.partsort stname ordStatement) $ unfoldUses fsts m
+
+extractTermsCode :: [String] -> [PreStatement] -> [[Text]]
+extractTermsCode ts sts = let extss = extractTerms ts sts in
+                          List.map (List.map (\ext -> DT.concat $ List.map (\s -> DT.append (fromCode $ stcode s)
+                                                      $ DT.append "\n(* end " $ DT.append (sname $ stname s) " *)\n\n") ext)) extss

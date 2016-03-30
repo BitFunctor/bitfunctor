@@ -1,6 +1,7 @@
 module Network.BitFunctor.Common  where
 
 import qualified Data.List as List
+import qualified Data.Map as Map
 import Data.Char (isSpace)
 
 spanEnd :: (a -> Bool) -> [a] -> ([a], [a])
@@ -10,6 +11,13 @@ spanEnd p l = let (l1,l2) = List.span p $ List.reverse l in
 headWithDefault :: a -> [a] -> a
 headWithDefault x [] = x
 headWithDefault _ (h:_) = h
+
+tailWithDefault :: [a] -> [a] -> [a]
+tailWithDefault x [] = x
+tailWithDefault _ (_:hs) = hs
+
+listinize :: [a] -> [[a]]
+listinize = List.map (\x -> [x])
 
 removeStartFromString :: String -> String -> String
 removeStartFromString [] s = s
@@ -24,3 +32,37 @@ removeStartFromString pat@(p:pats) str@(s:strs) = if (isSpace p) then
 
 removeEndFromString :: String -> String -> String
 removeEndFromString pat str = List.reverse $ removeStartFromString (List.reverse pat) (List.reverse str)
+
+
+--------------part sorting utils
+
+-- foldl :: (a -> b -> a) -> a -> [b] -> a
+
+data PartOrdering = PLT | PEQ | PGT | PNC	
+
+
+changehead0 :: (a -> Bool) -> [a] -> [a] -> [a]
+changehead0 _ l [] = l
+changehead0 f l (y:ys) = if (f y) then (y:l)++ys
+                                  else changehead0 f (l++[y]) ys
+
+changehead :: (a -> Bool) -> [a] -> [a]
+changehead f l = changehead0 f [] l
+
+partsort' :: Ord b => (a -> b) -> [(b, (a, (Integer, [a])))] -> [a] -> [a] 
+partsort' id l accl = let ls = List.sortBy (\(_, (_, (r1, _))) (_, (_, (r2, _))) -> compare r1 r2) l in
+                      case ls of
+                        [] -> Prelude.reverse accl
+                        (x:xs) -> partsort' id xs' ((fst $ snd x):accl) where
+                               xs' = let m = Map.fromList xs in
+                                     let majl = snd $ snd $ snd x in
+                                     Map.toList $ List.foldl (\m' y -> Map.adjust (\(x, (rx, mx)) -> (x, (rx-1, mx))) (id y) m') m majl    
+
+partsort :: Ord b => (a -> b) -> (a -> a -> PartOrdering) -> [a] -> [a]
+partsort _ _ [] = []
+partsort id ord l = let l' = List.map (\x -> (id x, (x, List.foldl (\(r,m) y -> case (ord x y) of
+                                                                                  PGT -> (r+1, m)
+                                                                                  PLT -> (r, y:m)
+                                                                                  _ -> (r,m) ) (0,[]) l))) l in                    
+                    partsort' id l' [] 
+                    

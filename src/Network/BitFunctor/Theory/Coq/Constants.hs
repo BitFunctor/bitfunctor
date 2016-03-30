@@ -50,7 +50,7 @@ coqImportMod m = coqImportString ++ m ++ ".\n"
 
 globKindStrings = [("defax", (Axiom, Resource)),
                    ("def", (Definition, Resource)),
-                   ("not", (Notation, StopStatement)),
+                   ("not", (Notation, IgnorableRes)),
                    ("ind", (Inductive, Resource)),
                    ("constr", (Constructor, Resource)),
                    ("prfax", (Axiom, Resource)),

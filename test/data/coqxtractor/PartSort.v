@@ -1,4 +1,6 @@
 Require Export Lists.List.
+Require Export omega.Omega.
+Require Export FunctionalExtensionality.
 
 
 Notation "x :: l" := (cons x l) (at level 60, right associativity).
@@ -19,8 +21,6 @@ Inductive Ordering :=
 
 
 Variable ord: X -> X -> Ordering.
-
-(* a > b > c *)
 
 Definition transord (x: Ordering) : Ordering :=
 match  x with
@@ -156,11 +156,12 @@ Inductive isSome{A} : option A -> Prop :=
 
 About Lists.find_some.
 
+(* prove'em later *) 
 Axiom find_some: forall (A: Type) l (x:A) f, find f l = Some x -> In x l /\ f x = true.
 Axiom find_some_inv: forall (A: Type) x l f, In x l /\ f x = true -> (exists (y:A), find f l = Some y). 
 Axiom find_none: forall (A: Type) l f, find f l = None -> (forall (x:A), In x l -> f x = false).
 Axiom find_some_filter: forall (A:Type) (x y:A) l f g, f x = false -> find g l = Some y -> f y = false -> find g (filter f l) = Some y.
-(* prove it later *) 
+
 
 Lemma downSeqSnoc: forall l x y, downSeq (l ++ [x]) -> ord x y = GT -> downSeq (l ++ [x] ++ [y]).
 Proof.
@@ -174,16 +175,11 @@ Proof.
  auto. rewrite <- app_ass. rewrite <- H2. auto.
 Qed.
 
-Require Export omega.Omega.
-
 Theorem list_ind''': forall (X:Type) (P: list X -> Prop), 
     P []  -> (forall (l2: list X), (forall (l1:list X),  length l1 < length l2 -> P l1) -> P l2) ->
     forall l : list X, P l.
 Proof.
   intros. apply H0. induction l. intros. inversion H1.
-
-  (* destruct (length l1) in H3.
-  inversion H3. inversion H3.*)
   intros. apply H0.
   intros. apply IHl. simpl in H1. 
   omega. 
@@ -235,20 +231,6 @@ Proof.
  auto.
 Qed.
 
-
-Require Export FunctionalExtensionality.
-
-Theorem minexists: forall (l: list X) (x:X) (m:nat), 
-         In x l -> m >= length l -> isSome (minroute m x (lesslists l)).
-Proof.
- intros. generalize dependent x. generalize dependent m. 
- apply list_ind''' with (l:=l); intros.
- inversion H. remember (length l2) as n. destruct n.
- symmetry in Heqn. apply len0nil in Heqn.
- rewrite Heqn in H1. inversion H1. destruct m. inversion H0.
- simpl. remember (find (fun yl : X * list X => eqOrd (ord x (fst yl)) EQ) (lesslists l2)) as fl.
- destruct fl. destruct p. destruct l0.
- constructor. 
 Lemma minexists_help1: forall x l, removeXL' x (lesslists l) =  
                                   lesslists (filter (fun y => negb (eqOrd (ord y x) EQ)) l).
 Proof.
@@ -276,9 +258,6 @@ Proof.
  apply ord_correct_refl_full. auto.
 Qed.
 
- rewrite minexists_help1.
- apply H.
-
 Lemma filterlen: forall A f (l: list A), length (filter f l) <= length l.
 Proof.
  intros. induction l. auto.
@@ -301,7 +280,20 @@ Proof.
  apply IHl. auto. omega.
 Qed.
 
- rewrite Heqn. apply minexists_help2. 
+
+Theorem minexists: forall (l: list X) (x:X) (m:nat), 
+         In x l -> m >= length l -> isSome (minroute m x (lesslists l)).
+Proof.
+ intros. generalize dependent x. generalize dependent m. 
+ apply list_ind''' with (l:=l); intros.
+ inversion H. remember (length l2) as n. destruct n.
+ symmetry in Heqn. apply len0nil in Heqn.
+ rewrite Heqn in H1. inversion H1. destruct m. inversion H0.
+ simpl. remember (find (fun yl : X * list X => eqOrd (ord x (fst yl)) EQ) (lesslists l2)) as fl.
+ destruct fl. destruct p. destruct l0.
+ constructor. 
+ rewrite minexists_help1.
+ apply H. rewrite Heqn. apply minexists_help2. 
  symmetry in Heqfl. apply find_some in Heqfl.
  inversion Heqfl. unfold lesslists in H2.
  apply in_map_iff in H2. inversion H2.
