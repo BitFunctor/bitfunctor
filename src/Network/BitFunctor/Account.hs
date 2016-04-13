@@ -10,7 +10,7 @@ import Network.BitFunctor.Crypto.Types
 import Crypto.PubKey.Ed25519 (toPublic, secretKey)
 import Crypto.Error (onCryptoFailure, CryptoError)
 import Crypto.Random.EntropyPool
-import Data.ByteArray (ScrubbedBytes, convert)
+import Data.ByteArray (ScrubbedBytes, Bytes, convert)
 
 import Data.Aeson
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
@@ -20,17 +20,18 @@ import qualified Data.Text.Encoding as TE
 newtype AccountId = AccountId PublicKey
                     deriving (Show, Eq)
 
-
-instance Ord AccountId where
-  compare (AccountId pk1) (AccountId pk2) = undefined -- FIXME
-
-instance ToJSON AccountId where
-  toJSON (AccountId pk) = toJSON pk
-
-
 data Account = Account { pubKey :: PublicKey
                        , secKey :: Maybe SecretKey
                        } deriving Eq
+
+
+instance Ord AccountId where
+  compare (AccountId pk1) (AccountId pk2) = compare (toBytes pk1) (toBytes pk2)
+    where toBytes :: PublicKey -> Bytes
+          toBytes = convert
+
+instance ToJSON AccountId where
+  toJSON (AccountId pk) = toJSON pk
 
 
 generate :: IO (Either CryptoError Account)
