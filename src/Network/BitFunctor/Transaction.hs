@@ -20,7 +20,7 @@ import Network.BitFunctor.Token (BTF (..), (+.))
 
 
 sign :: Account -> Transaction -> Maybe Transaction
-sign acc tx = case (sender $ input tx) == toAccountId acc of
+sign acc tx = case from tx == toAccountId acc of
                 True  -> do
                   sk <- secKey acc
                   let pk = pubKey acc
@@ -29,7 +29,7 @@ sign acc tx = case (sender $ input tx) == toAccountId acc of
 
 
 verify :: Transaction -> Bool
-verify tx = C.verify (pubKey . fromAccountId . sender $ input tx)
+verify tx = C.verify (pubKey . fromAccountId $ from tx)
                      (signEncode tx) $ signature tx
 
 
