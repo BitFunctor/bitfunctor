@@ -1,6 +1,9 @@
-module Network.BitFunctor.Account ( Account (..)
+module Network.BitFunctor.Account ( Account
                                   , AccountId
                                   , generate
+                                  , mkAccount
+                                  , pubKey
+                                  , secKey
                                   , fromAccountId
                                   , toAccountId
                                   ) where
@@ -11,6 +14,7 @@ import Crypto.PubKey.Ed25519 (toPublic, secretKey)
 import Crypto.Error (onCryptoFailure, CryptoError)
 import Crypto.Random.EntropyPool
 import Data.ByteArray (ScrubbedBytes, Bytes, convert)
+import qualified Data.ByteString.Base16 as B16 (encode, decode)
 
 import Data.Aeson
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
@@ -33,6 +37,13 @@ instance Ord AccountId where
 instance ToJSON AccountId where
   toJSON (AccountId pk) = toJSON pk
 
+instance Show Account where
+  show acc = "Account { pubKey = " ++ (show . B16.encode . convert $ pubKey acc) ++ ", secKey = <hidden> }"
+
+mkAccount :: SecretKey -> Account
+mkAccount sk = Account { pubKey = toPublic sk
+                       , secKey = Just sk
+                       }
 
 generate :: IO (Either CryptoError Account)
 generate = do
@@ -40,9 +51,9 @@ generate = do
   let secKeyLength = 32 -- cryptonite doesn't export that...
   entropy <- getEntropyFrom pool secKeyLength
   return $ onCryptoFailure Left
-                           (\sk -> Right Account { pubKey = toPublic sk
-                                                 , secKey = Just sk })
+                           (Right . mkAccount)
                            (secretKey (entropy :: ScrubbedBytes))
+
 
 fromAccountId :: AccountId -> Account
 fromAccountId (AccountId pk) = Account { pubKey = pk, secKey = Nothing }
