@@ -26,7 +26,7 @@ data Block = Block { previous     :: Hash Id
                    , baseTarget   :: Integer
                    , generator    :: AccountId
                    , signature    :: Signature
-                   } deriving (Show, Generic)
+                   } deriving (Show, Eq, Generic)
 
 instance Binary Block where
   put = undefined
