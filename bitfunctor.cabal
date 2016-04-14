@@ -51,19 +51,27 @@ library
                        parsec,
                        parsec-numbers,
                        process,
-                       split 
+                       split
   hs-source-dirs:      src
   default-language:    Haskell2010
 
 test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
-  other-modules:       
+  other-modules:         Network.BitFunctor.Account.Tests
+                       , Network.BitFunctor.Crypto.Arbitrary
+                       , Network.BitFunctor.Transaction.Arbitrary
+                       , Network.BitFunctor.Transaction.Tests
+                       , Network.BitFunctor.Tests
   ghc-options:         -Wall -rtsopts
   build-depends:         base
                        , bitfunctor
+                       , cryptonite
+                       , memory
+                       , binary
                        , HUnit
                        , QuickCheck
+                       , quickcheck-instances
                        , tasty
                        , tasty-hunit
                        , tasty-quickcheck
