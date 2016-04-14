@@ -27,12 +27,16 @@ coqExecutable = "coqc"
 coqPrintCommentsDelimiter = "\n\n"
 coqTypeDelimiter = ":"
 coqDefinitionString = "Definition "
+coqAxiomString = "Axiom "
 coqPrintEqSign = "="
 coqDefSign = ":="
 generatedFilePrefix = "Bitfunctor"
 nullLibString = ("" :: String )
 
-coqDefineTerm s t b = coqDefinitionString ++ s ++ coqTypeDelimiter ++ t ++ coqDefSign ++ b ++ [coqStatementDelimiter]
+coqDefineTerm s t b = if (Prelude.null b) then
+                         coqAxiomString ++ s ++ coqTypeDelimiter ++ t ++ [coqStatementDelimiter]
+                      else
+                         coqDefinitionString ++ s ++ coqTypeDelimiter ++ t ++ coqDefSign ++ b ++ [coqStatementDelimiter]
 
 coqExportLib "" = ""
 coqExportLib l = coqExportString ++ l ++ ".\n"
@@ -74,6 +78,6 @@ resourceKind :: CoqKind -> ResourceKind
 resourceKind k = let m = Map.fromList $ List.map snd globKindStrings in
                  Map.findWithDefault IgnorableRes k m                           
 
-listAbnormallyPrinted = [Definition, Theorem, Method, Class, Axiom]
+listAbnormallyPrinted = [Definition, Theorem, Method, Class, Axiom, Proof, Instance]
 
 isAbnormallyPrinted k = List.elem k listAbnormallyPrinted 

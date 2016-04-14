@@ -23,8 +23,8 @@ main = do
        args <- getArgs
        let argsSplitted = splitOneOf commandLineFlags args
        let libs = Common.headWithDefault [] argsSplitted
-       extractedStms <- SE.extractStatements libs [] []
-       putStrLn $ show extractedStms
+       extractedStms <- SE.extractStatements libs
+       -- putStrLn $ show extractedStms
        let us = List.nub $ concat $ List.map stuses extractedStms
        let th = Map.fromList $ List.map (\s -> (stname s, s)) extractedStms
        forM_ us (\u -> if (Map.member (snd u) th) then
