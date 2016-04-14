@@ -327,3 +327,5 @@ Proof.
  auto.
  inversion H2. rewrite H3 in Heqfl. inversion Heqfl.
 Qed.  
+
+Print minexists.
