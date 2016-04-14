@@ -58,7 +58,8 @@ library
 test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
-  other-modules:         Network.BitFunctor.Account.Tests
+  other-modules:         Network.BitFunctor.Account.Arbitrary
+                       , Network.BitFunctor.Account.Tests
                        , Network.BitFunctor.Crypto.Arbitrary
                        , Network.BitFunctor.Transaction.Arbitrary
                        , Network.BitFunctor.Transaction.Tests
