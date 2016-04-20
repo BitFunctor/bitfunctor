@@ -13,9 +13,10 @@ import qualified Network.BitFunctor.Theory.Coq.Constants as Constants
 type GlobFileDigest = String
 -- the name of library  - the same as the file name
 type GlobFileName = String
+
+data GlobFilePosition = GlobFilePosition {espos:: Int, eepos:: Int} deriving (Eq, Show)
 -- the general entry inside .glob file
-data GlobFileRawEntry = GlobFileRawEntry {espos:: Int, -- start position
-                                          eepos:: Int, -- end position
+data GlobFileRawEntry = GlobFileRawEntry {epos:: GlobFilePosition, 
                                           ekind:: CoqKind, -- the kind of the entry
                                           elibname:: String, -- library name
                                           emodname:: String, -- module name
@@ -68,7 +69,7 @@ globfileStatement = do
                                Notation -> globfileNot
                                _ -> globfileIdent
                      newline                                         
-                     return $ GlobFileStatement $ GlobFileRawEntry sbyte (fromMaybe sbyte mebyte) kind "" modname name
+                     return $ GlobFileStatement $ GlobFileRawEntry (GlobFilePosition sbyte (fromMaybe sbyte mebyte)) kind "" modname name
 
 globfileResource =  do
                      char Constants.globResourceChar
@@ -84,4 +85,4 @@ globfileResource =  do
                      spaces
                      kind <- parseFromList fst Constants.globKindStrings
                      newline
-                     return $ GlobFileResource $ GlobFileRawEntry sbyte ebyte kind libname modname name
+                     return $ GlobFileResource $ GlobFileRawEntry (GlobFilePosition sbyte ebyte) kind libname modname name

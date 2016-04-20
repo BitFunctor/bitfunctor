@@ -19,6 +19,10 @@ tailWithDefault _ (_:hs) = hs
 listinize :: [a] -> [[a]]
 listinize = List.map (\x -> [x])
 
+lastWithDefault :: a -> [a] -> a
+lastWithDefault x [] = x
+lastWithDefault _ l = List.last l
+
 removeStartFromString :: String -> String -> String
 removeStartFromString [] s = s
 removeStartFromString p [] = []

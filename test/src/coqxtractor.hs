@@ -27,15 +27,17 @@ main = do
        -- putStrLn $ show extractedStms
        let us = List.nub $ concat $ List.map stuses extractedStms
        let th = Map.fromList $ List.map (\s -> (stname s, s)) extractedStms
-       forM_ us (\u -> if (Map.member (snd u) th) then
-                           putStrLn $ "!Found: " ++ (show u)
-                       else
-                           putStrLn $ "?Found: " ++ (show u))
+       forM_ us (\u -> if (fst u /= SelfReference) && (fst u /= BoundVariable) then
+                              if (Map.member (snd u) th) then
+                                    putStrLn $ "!Found: " ++ (show u)
+                              else
+                                    putStrLn $ "?Found: " ++ (show u)
+                        else return ())
        putStrLn "Libraries have been processed, extracting terms..."
        let terms = Common.headWithDefault [] $ Common.tailWithDefault [[]] argsSplitted
        -- putStrLn $ show terms
        let extractedCodes = Prelude.concat $ SE.extractTermsCode terms extractedStms 
-       -- putStrLn $ show extractedTerms
+       putStrLn $ "Totally extracted: " ++ (show $ Prelude.length extractedCodes)
        forM_ extractedCodes (\t -> do
                                      date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
                                      let sename = "Ex" ++ Constants.generatedFilePrefix ++ (toString $ Ident.id $ Ident.ByBinary $ show date) ++ Constants.vernacFileSuffix 

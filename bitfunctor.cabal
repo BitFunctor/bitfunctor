@@ -51,7 +51,8 @@ library
                        parsec,
                        parsec-numbers,
                        process,
-                       split
+                       split,
+                       utf8-string
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -96,6 +97,7 @@ executable coqxtractor
                        parsec-numbers,
                        MissingH,
                        directory,
-                       split
+                       split,
+                       utf8-string
   hs-source-dirs:      test/src
   default-language:    Haskell2010

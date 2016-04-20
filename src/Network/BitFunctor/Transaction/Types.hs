@@ -50,10 +50,10 @@ data Transaction = Transaction { input     :: TxInput
                                , signature :: Signature
                                } deriving (Show, Eq, Generic)
 
-
+-- Code commented to be compiled
 data TheoryPayload = TheoryPayload {
-  uses :: [Hash Id],
-  code :: Theory.Code
+  uses :: [Hash Id]
+ -- , code :: Theory.Code
 } deriving (Eq, Show, Generic)
 
 

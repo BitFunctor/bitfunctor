@@ -9,8 +9,8 @@ import qualified Data.List as List
 globDigestString = "DIGEST"
 globLibChar = 'F'
 globResourceChar = 'R'
-coqIdentExtraChars = "._'"
-coqNotationExtraChars = ".<>[]'_,:=/\\+(){}!?*-|^~&@"
+coqIdentExtraChars = "._'\8322\8321"
+coqNotationExtraChars = ".<>[]'_,:=/\\+(){}!?*-|^~&@\8322\8321"
 globEmptySubEntryString = "<>"
 globLineNumbersDelimiter = ':'
 coqModuleDelimiter = '.'
@@ -19,6 +19,7 @@ xtrFilePrefix = "SE"
 xtrPrintFilePrefix = "WP"
 xtrTypeFilePrefix = "WT"
 vernacFileSuffix = ".v"
+vernacBinaryFileSuffix = ".vo"
 globFileSuffix = ".glob"
 coqExportString = "Require Export "
 coqImportString = "Import "
@@ -32,6 +33,7 @@ coqPrintEqSign = "="
 coqDefSign = ":="
 generatedFilePrefix = "Bitfunctor"
 nullLibString = ("" :: String )
+coqSpace = " "
 
 coqDefineTerm s t b = if (Prelude.null b) then
                          coqAxiomString ++ s ++ coqTypeDelimiter ++ t ++ [coqStatementDelimiter]
@@ -72,12 +74,13 @@ globKindStrings = [("defax", (Axiom, Resource)),
                    ("meth", (Method, Resource)),
                    ("thm", (Theorem, Resource)),
                    ("lib", (Library, IgnorableRes)),
-                   ("scheme", (Scheme, IgnorableRes))]
+                   ("scheme", (Scheme, IgnorableRes))
+                   ]
 
 resourceKind :: CoqKind -> ResourceKind
 resourceKind k = let m = Map.fromList $ List.map snd globKindStrings in
                  Map.findWithDefault IgnorableRes k m                           
 
-listAbnormallyPrinted = [Definition, Theorem, Method, Class, Axiom, Proof, Instance]
+listAbnormallyPrinted = [Definition, Theorem, Method , Class, Axiom, Proof, Instance, Variable]
 
 isAbnormallyPrinted k = List.elem k listAbnormallyPrinted 
