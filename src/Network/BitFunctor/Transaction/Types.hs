@@ -6,6 +6,7 @@ module Network.BitFunctor.Transaction.Types ( Transaction (..)
                                             , TxInputType (..)
                                             , TxOutput (..)
                                             , TransactionHash
+                                            , TransactionSigning (..)
                                             , TheoryPayload (..)
                                             ) where
 
@@ -60,9 +61,30 @@ data TheoryPayload = TheoryPayload {
 instance Identifiable Transaction where
   id = hash . toStrict . Binary.encode
 
+
 instance Binary Transaction where
-  put = undefined
+  put tx = do
+    putTxNoSig tx
+    put $ signature tx
   get = undefined
+
+
+newtype TransactionSigning = TransactionSigning Transaction
+
+instance Binary TransactionSigning where
+  put (TransactionSigning tx) = putTxNoSig tx
+  get = error "No binary parsing for TransactionSigning"
+
+
+putTxNoSig tx = do
+    --put $ input tx
+    --put $ output tx
+    --put $ fee tx
+    --put $ timestamp tx
+    put $ signature tx
+
+
+
 
 --instance Binary TheoryPayload
 

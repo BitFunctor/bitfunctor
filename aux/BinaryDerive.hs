@@ -22,14 +22,6 @@ import qualified Data.Binary as Binary (Binary(..), encode)
 import qualified Data.ByteString.Lazy (toStrict)
 
 
-data Code = CoqText DT.Text
-            deriving (Typeable, Data)
-     
-data Kind = Type | Function | Theorem
-            deriving (Typeable, Data)
-
-
-
 deriveM ::  (Typeable a, Data a) => a -> IO ()
 deriveM (a :: a) = mapM_ putStrLn . lines $ derive (undefined :: a)
 

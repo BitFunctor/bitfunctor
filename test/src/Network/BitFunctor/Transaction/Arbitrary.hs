@@ -1,14 +1,14 @@
 module Network.BitFunctor.Transaction.Arbitrary where
 
 import Network.BitFunctor.Account
-import Network.BitFunctor.Account.Arbitrary
+import Network.BitFunctor.Account.Arbitrary()
 import Network.BitFunctor.Token
 import Network.BitFunctor.Transaction
 
 import Data.Maybe (fromJust)
 
 import Test.QuickCheck
-import Test.QuickCheck.Instances
+import Test.QuickCheck.Instances()
 
 
 instance Arbitrary TxInputType where
@@ -21,9 +21,9 @@ instance Arbitrary Transaction where
     accFrom <- arbitrary
     accIdTo <- arbitrary
 
-    let from = toAccountId accFrom
+    let frm = toAccountId accFrom
     what <- arbitrary
-    let i = TxInput from what
+    let i = TxInput frm what
     let o = TxOutput accIdTo
     let f = BTF 1
     t <- arbitrary

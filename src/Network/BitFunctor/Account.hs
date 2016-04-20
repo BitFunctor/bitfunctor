@@ -14,15 +14,15 @@ import Crypto.PubKey.Ed25519 (toPublic, secretKey)
 import Crypto.Error (onCryptoFailure, CryptoError)
 import Crypto.Random.EntropyPool
 import Data.ByteArray (ScrubbedBytes, Bytes, convert)
-import qualified Data.ByteString.Base16 as B16 (encode, decode)
 
 import Data.Aeson
+import Data.Binary
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
 import qualified Data.Text.Encoding as TE
 
 
 newtype AccountId = AccountId PublicKey
-                    deriving (Show, Eq)
+                    deriving Eq
 
 data Account = Account { pubKey :: PublicKey
                        , secKey :: Maybe SecretKey
@@ -34,11 +34,19 @@ instance Ord AccountId where
     where toBytes :: PublicKey -> Bytes
           toBytes = convert
 
+instance Binary AccountId where
+  put (AccountId pk) = put pk
+  get                = get >>= \pk -> return $ AccountId pk
+
 instance ToJSON AccountId where
   toJSON (AccountId pk) = toJSON pk
 
+instance Show AccountId where
+  show (AccountId pk) = "AccountId " ++ (show . B16.encode $ convert pk)
+
 instance Show Account where
   show acc = "Account { pubKey = " ++ (show . B16.encode . convert $ pubKey acc) ++ ", secKey = <hidden> }"
+
 
 mkAccount :: SecretKey -> Account
 mkAccount sk = Account { pubKey = toPublic sk

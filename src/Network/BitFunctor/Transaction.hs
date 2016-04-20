@@ -13,6 +13,8 @@ module Network.BitFunctor.Transaction ( Transaction (..)
 
 import qualified Crypto.PubKey.Ed25519 as C (sign, verify)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
+import Data.Binary
 
 import Network.BitFunctor.Transaction.Types
 import Network.BitFunctor.Account
@@ -26,7 +28,6 @@ sign acc tx = case from tx == toAccountId acc of
                   let pk = pubKey acc
                   return tx { signature = C.sign sk pk (signEncode tx) }
                 False -> Nothing
-
 
 verify :: Transaction -> Bool
 verify tx = C.verify (pubKey . fromAccountId $ from tx)
@@ -49,6 +50,5 @@ validateHeader tx = worthwhile && signatureValid
                   where worthwhile     = value tx >= BTF 0
                         signatureValid = verify tx
 
-
 signEncode :: Transaction -> B.ByteString
-signEncode tx = undefined
+signEncode tx = BL.toStrict $ encode (TransactionSigning tx)
