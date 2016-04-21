@@ -11,7 +11,7 @@ import Data.ByteArray (convert)
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text as DT (unpack)
-
+import GHC.Generics
 
 data HashAlgorithm a =>
      Hash a = Hash (Digest a)

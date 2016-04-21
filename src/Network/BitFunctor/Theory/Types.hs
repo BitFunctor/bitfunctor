@@ -12,8 +12,14 @@ import Data.Aeson
 import Data.Aeson.Types (typeMismatch)
 import Control.Applicative
 import Data.Text as DT
+import qualified Data.Text.Encoding as TE
 import Data.Binary
 import qualified Network.BitFunctor.Crypto.Hash as Hash
+import qualified Data.Serialize as DS
+import qualified Data.ByteString as DBS
+import qualified Data.ByteString.Base16 as B16 (encode, decode)
+import qualified Data.ByteArray as DBA (convert)
+
 
 data CoqCodePart a = CoqCodeText Text | CoqCodeEntry a deriving (Eq, Show, Generic)
 
@@ -63,19 +69,41 @@ fqStatementName s = DT.append (if (libname s == "") then "" else DT.append (libn
                     (DT.append (if (modname s == "") then "" else DT.append (modname s) ".") (sname s))  
 
 data StatementA a = Statement { stname :: CoqStatementName
+                              -- , origstname :: CoqStatementName
                               , stkind :: CoqKind -- refactoring is needed
                               , stcode :: Code a
                               , stsource:: Hash.Hash Hash.Id -- source filename isomorphism
                               , stuses :: [a]
                            } deriving (Eq, Show, Generic)
 
-type Statement = StatementA (Hash.Hash Hash.Id)
+type HashId = Hash.Hash Hash.Id
+type Statement = StatementA HashId
 type Theory = Map.Map String Statement
-type HashCodePart = CoqCodePart (Hash.Hash Hash.Id)
-type HashCode = Code (Hash.Hash Hash.Id)
+type HashCodePart = CoqCodePart HashId
+type HashCode = Code HashId
+
+type CoqTerm = (CoqKind, CoqStatementName)
+type PreTheory a = Map.Map CoqStatementName (StatementA a)
+type PreStatementWithList = StatementA CoqTerm
+type PreTheoryWithList = PreTheory CoqTerm
+type PreCode = Code CoqTerm
+type PreCodePart = CoqCodePart CoqTerm
+type PreTheoryList = [PreStatementWithList]
+
 
 instance Binary HashCodePart
 instance Binary HashCode
 instance Binary CoqKind
 instance Binary CoqStatementName
 instance Binary Statement
+
+instance DS.Serialize DT.Text where
+  put txt = DS.put $ TE.encodeUtf8 txt
+  get     = fmap TE.decodeUtf8 DS.get
+
+instance DS.Serialize CoqStatementName
+instance DS.Serialize CoqKind
+instance DS.Serialize PreCode
+instance DS.Serialize PreCodePart
+instance DS.Serialize PreStatementWithList
+-- instance DS.Serialize PreTheoryList

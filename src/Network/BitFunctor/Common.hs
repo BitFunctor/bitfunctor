@@ -2,6 +2,7 @@ module Network.BitFunctor.Common  where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import Data.Char (isSpace)
 
 spanEnd :: (a -> Bool) -> [a] -> ([a], [a])
@@ -24,8 +25,8 @@ lastWithDefault x [] = x
 lastWithDefault _ l = List.last l
 
 removeStartFromString :: String -> String -> String
-removeStartFromString [] s = s
-removeStartFromString p [] = []
+removeStartFromString "" s = s
+removeStartFromString p "" = ""
 removeStartFromString pat@(p:pats) str@(s:strs) = if (isSpace p) then
                                                      removeStartFromString pats str
                                                   else if (isSpace s) then
@@ -37,6 +38,9 @@ removeStartFromString pat@(p:pats) str@(s:strs) = if (isSpace p) then
 removeEndFromString :: String -> String -> String
 removeEndFromString pat str = List.reverse $ removeStartFromString (List.reverse pat) (List.reverse str)
 
+
+removeStartFromText t1 t2 = Text.pack $ removeStartFromString (Text.unpack t1) (Text.unpack t2)
+removeEndFromText t1 t2 = Text.reverse $ removeStartFromText (Text.reverse t1) (Text.reverse t2)
 
 --------------part sorting utils
 

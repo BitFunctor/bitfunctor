@@ -11,6 +11,7 @@ import System.Exit
 import System.IO
 import qualified Text.ParserCombinators.Parsec as PS (parse)
 import Data.Text as DT
+import qualified Data.Text.IO as TextIO (writeFile)
 import qualified Data.Text.Encoding as TE
 import Data.Maybe (fromMaybe, catMaybes)
 import qualified Data.List as List 
@@ -20,13 +21,9 @@ import qualified Data.String.Utils as SU
 import Data.Foldable (foldlM)
 import qualified Data.Time as Time (getCurrentTime)
 import qualified System.Directory as SD (doesFileExist, removeFile)
-import Data.Aeson (toJSON)
 import Data.Tuple (swap)
-import Control.Monad (forM_)
-import qualified Data.ByteString.Char8 as BS8
-import qualified Data.ByteString.Lazy as DBSL
-import qualified Data.Binary as Bin
-import qualified Data.ByteString.Lazy.UTF8 as UTF8
+import Control.Monad (forM_, mapM)
+import qualified Data.ByteString.Char8 as DBS8
 
 import qualified Network.BitFunctor.Common as Common
 import Network.BitFunctor.Crypto.Hash.Types
@@ -36,7 +33,11 @@ import qualified Network.BitFunctor.Theory.Coq.Constants as Constants
 import qualified Network.BitFunctor.Identifiable as Ident
 import qualified Network.BitFunctor.Theory.Coq.GlobFileParser as GP
 
--- libname, modname, name
+type CoqTermEntry = (CoqTerm, [GP.GlobFilePosition])
+type PreStatementWithPositions = StatementA CoqTermEntry
+type PreTheoryWithPositions = Map.Map CoqStatementName PreStatementWithPositions
+
+{--
 type CoqTerm = (CoqKind, CoqStatementName)
 type CoqTermEntry = (CoqTerm, [GP.GlobFilePosition])
 type PreStatementWithPositions = StatementA CoqTermEntry
@@ -44,25 +45,24 @@ type PreTheory a = Map.Map CoqStatementName (StatementA a)
 type PreTheoryWithPositions = Map.Map CoqStatementName PreStatementWithPositions
 type PreStatementWithList = StatementA CoqTerm
 type PreTheoryWithList = PreTheory CoqTerm
+--}
 
--- TODO: deal with multiple declarations without dots like
--- Variale a b: X.
--- Remove vernac comments
+(<>) :: DT.Text -> DT.Text -> DT.Text
+(<>) t1 t2 = DT.append t1 t2
+
 -- if the final term is stripped we could lose the shift number for dependencies
 -- so it will not be stipped, always having newline as the first symbol - and that is OK only for Printed term
 -- if to take from the user code some extra spaces could be added to the final Code
-loadVernacCode :: String -> Int -> Maybe Int -> IO (Int, Code a)
-loadVernacCode vfname pos1 (Just pos2) = do
-                                     -- putStrLn $ "pos1 = " ++ (show pos1)
-                                     -- putStrLn $ "pos2 = " ++ (show pos2)
+{--
+loadVernacCode :: FilePath -> Int -> Maybe Int -> IO (Int, Code a)
+loadVernacCode vfname pos1 (Just pos2) = do                                     
                                      h <- openBinaryFile vfname ReadMode                                    
                                      hSeek h AbsoluteSeek (fromIntegral pos1)                                     
                                      let seekBackDot n = do
                                                         bs <- DBS.hGet h 1
                                                         -- seeking was at pos1 - (n-1)
-                                                        if (TE.decodeUtf8 bs == DT.pack [Constants.coqStatementDelimiter]) then return (n-1)
-                                                        else do
-                                                           -- putStrLn $ show n
+                                                        if (TE.decodeUtf8 bs == DT.singleton Constants.coqStatementDelimiter) then return (n-1)
+                                                        else do                                                           
                                                            if (pos1 >= n) then do  
                                                               hSeek h AbsoluteSeek (fromIntegral $ pos1 - n)
                                                               seekBackDot (n+1)
@@ -73,17 +73,45 @@ loadVernacCode vfname pos1 (Just pos2) = do
                                      let sz = pos2 - pos1 + 1 + n                                      
                                      if (sz > 0) then do 
                                         bs <- DBS.hGet h sz
-                                        -- putStrLn $ "bs = " ++ (show bs)
                                         hClose h  
-                                        return $ (pos1 - n + 1, CoqText $ DT.pack $ List.dropWhileEnd (\c -> c/= Constants.coqStatementDelimiter)
+                                        return $ (pos1 - n + 1, CoqText $ DT.dropWhileEnd (\c -> c /= Constants.coqStatementDelimiter)
                                                -- $ SU.strip
-                                               $ DT.unpack $ TE.decodeUtf8 bs)
+                                               $ TE.decodeUtf8 bs)
                                      else
                                         return $ (0, CoqText "")
 loadVernacCode vfname pos1 Nothing = do
                                        h <- openBinaryFile vfname ReadMode
                                        lastpos <- hFileSize h
                                        loadVernacCode vfname pos1 (Just $ fromIntegral $ lastpos - 1)
+--}
+
+loadVernacCode :: FilePath -> Int -> Maybe Int -> IO (Int, Code a)
+loadVernacCode vfname pos1 (Just pos2) = do                                     
+                                     h <- openBinaryFile vfname ReadMode
+                                     fcont <- DBS8.hGetContents h                                                                                                           
+                                     let seekBackDot n = let c = DBS8.index fcont (pos1 - n) in
+                                                         if (c == Constants.coqStatementDelimiter) then (n-1)
+                                                         else                                                           
+                                                           if (pos1 > n) then                                                                 
+                                                              seekBackDot (n+1)
+                                                           else n
+                                     let n = seekBackDot 1 
+                                     let sz = pos2 - (pos1 - n) +1                                      
+                                     if (sz > 0) then do 
+                                        let bs = DBS8.take sz $ DBS8.drop (pos1 - n) fcont
+                                        hClose h
+                                        return $ (pos1 - n, CoqText $ DT.dropWhileEnd (\c -> c /= Constants.coqStatementDelimiter)
+                                               -- $ SU.strip
+                                               $ TE.decodeUtf8 bs)
+                                     else
+                                        return $ (0, CoqText "")
+loadVernacCode vfname pos1 Nothing = do
+                                       h <- openBinaryFile vfname ReadMode
+                                       lastpos <- hFileSize h
+                                       loadVernacCode vfname pos1 (Just $ fromIntegral $ lastpos - 1)
+
+
+
 
 fromGlobFileRawEntry :: GP.GlobFileName -> GP.GlobFileRawEntry -> Maybe (GP.GlobFilePosition, PreStatementWithPositions)
 fromGlobFileRawEntry lib r = case (Constants.resourceKind $ GP.ekind r) of
@@ -102,9 +130,9 @@ fromGlobFileRawEntry lib r = case (Constants.resourceKind $ GP.ekind r) of
 adjustGlobFilePosition :: Int -> GP.GlobFilePosition -> GP.GlobFilePosition
 adjustGlobFilePosition n (GP.GlobFilePosition x y) = GP.GlobFilePosition (x+n) (y+n)
 
--- not to collect Code when firstly process user file
+-- TODO: do not collect Code when firstly process user file
 -- the code collection should be done only for Printed terms
-collectStatements0 :: [GP.GlobFileEntry] -> String -> GP.GlobFileName -> Maybe (GP.GlobFilePosition, PreStatementWithPositions) -> Maybe Int -> [PreStatementWithPositions] -> IO [PreStatementWithPositions]
+collectStatements0 :: [GP.GlobFileEntry] -> FilePath -> GP.GlobFileName -> Maybe (GP.GlobFilePosition, PreStatementWithPositions) -> Maybe Int -> [PreStatementWithPositions] -> IO [PreStatementWithPositions]
 collectStatements0 [] vfname _ (Just (GP.GlobFilePosition pos1 _, cs)) mpos2  accs = do
                                                               (n, cd) <- loadVernacCode vfname pos1 mpos2  
                                                               return $ cs {stcode = cd,
@@ -112,15 +140,14 @@ collectStatements0 [] vfname _ (Just (GP.GlobFilePosition pos1 _, cs)) mpos2  ac
 collectStatements0 [] _ _ Nothing _  accs = return accs
 collectStatements0 (s:ss) vfname libname pcs@(Just jpcs@(GP.GlobFilePosition pos1 _, cs)) mpos2 accs = 
             case s of
-                GP.GlobFileStatement r-> do
-                                      -- putStrLn $ "Processing " ++ (show $ ekind r)
+                GP.GlobFileStatement r-> do                                      
                                       case (GP.ekind r, stkind cs) of
                                         (Constructor, Inductive) ->                                              
                                              let pcons' = fromGlobFileRawEntry libname r in
                                              case pcons' of
                                                Nothing -> fail "Cannot collect constructor"
                                                Just (pos, cons') -> 
-                                                   let cons = cons' {stuses = [((stkind cs, stname cs), [])]} in
+                                                   let cons = cons' in 
                                                    collectStatements0 ss vfname libname (Just (fst jpcs, (snd jpcs) {stuses = Map.toList $
                                                                                                                      Map.insertWith (++) (LocalConstructor, stname cons') [pos] $
                                                                                                                      Map.fromList (stuses $ snd jpcs)})) Nothing (cons:accs)
@@ -131,8 +158,7 @@ collectStatements0 (s:ss) vfname libname pcs@(Just jpcs@(GP.GlobFilePosition pos
                                                                           stuses = List.map (\u -> (fst u, List.map (adjustGlobFilePosition (-n)) $ snd u)) (stuses cs)}:accs
                                                let newpcs = fromGlobFileRawEntry libname r
                                                collectStatements0 ss vfname libname newpcs Nothing accs'                     
-                GP.GlobFileResource r -> do
-                                        -- putStrLn $ "Processing " ++ (show $ ekind r)
+                GP.GlobFileResource r -> do                                        
                                         case (Constants.resourceKind $ GP.ekind r) of
                                          StopStatement -> 
                                                    let newpos2 = Just $ fromMaybe ((GP.espos $ GP.epos r) - 1) mpos2 in
@@ -165,35 +191,32 @@ removeFiles (f:fs) = do
                        removeFiles fs
                     removeFiles fs
 
-clearCoqGeneratedFiles :: [String] -> IO ()
+clearCoqGeneratedFiles :: [FilePath] -> IO ()
 clearCoqGeneratedFiles [] = return ()
 clearCoqGeneratedFiles (f:fs) = removeFiles [f++Constants.vernacFileSuffix, f++Constants.vernacBinaryFileSuffix, f++Constants.globFileSuffix] >> clearCoqGeneratedFiles fs
 
-fullPrintTerm l1 l2 m t = let l2' = if l1==l2 then "" else l2 in
-   (Constants.coqExportLib l1) ++ (Constants.coqExportLib l2') ++ (Constants.coqImportMod m) ++ (Constants.coqPrintTerm t)
-fullPrintType l1 l2 m t = let l2' = if l1==l2 then "" else l2 in
-   (Constants.coqExportLib l1) ++ (Constants.coqExportLib l2') ++ (Constants.coqImportMod m) ++ (Constants.coqPrintType t)
+fullPrintTerm l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
+   (Constants.coqExportLib l1) <> (Constants.coqExportLib l2') <> (Constants.coqImportMod m) <> (Constants.coqPrintTerm t)
+fullPrintType l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
+   (Constants.coqExportLib l1) <> (Constants.coqExportLib l2') <> (Constants.coqImportMod m) <> (Constants.coqPrintType t)
 
--- :: statement kind -> statement name -> theory -> accumulated list of (statements, filenames) ->
--- (statement name, generated (or found file))
-
-getPrintedStatement :: CoqTerm -> IO (Maybe (String, String))
+getPrintedStatement :: CoqTerm -> IO (Maybe (DT.Text, DT.Text))
 getPrintedStatement (k, sts) =  do
-                            let fqstname = DT.unpack $ fqStatementName sts
-                            let mname = DT.unpack $ modname sts
-                            let shname = DT.unpack $ sname sts
-                            let lname = DT.unpack $ libname sts
+                            let fqstname = fqStatementName sts
+                            let mname = modname sts
+                            let shname = sname sts
+                            let lname = libname sts
                             date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
                             let sename = Constants.xtrFilePrefix ++ (toString $ Ident.id $ Ident.ByBinary (show date, sts))
                             let fwPname' = Constants.xtrPrintFilePrefix ++ sename
                             let fwCname' = Constants.xtrTypeFilePrefix ++ sename
                             let fwPname = fwPname' ++ Constants.vernacFileSuffix
                             let fwCname = fwCname' ++ Constants.vernacFileSuffix
-                            putStrLn $ "Generating files for " ++ show k ++ " " ++ fqstname                                         
-                            writeFile fwPname $ fullPrintTerm "" lname mname fqstname
-                            writeFile fwCname $ fullPrintType "" lname mname fqstname
-                            (ecP, s1P, _) <- readProcessWithExitCode Constants.coqExecutable [fwPname] []
-                            (ecC, s1C, _) <- readProcessWithExitCode Constants.coqExecutable [fwCname] []
+                            putStrLn $ "Generating files for " ++ show k ++ " " ++ (DT.unpack fqstname)
+                            TextIO.writeFile fwPname $ fullPrintTerm "" lname mname fqstname
+                            TextIO.writeFile fwCname $ fullPrintType "" lname mname fqstname
+                            (ecP, s1P', _) <- readProcessWithExitCode Constants.coqExecutable [fwPname] []
+                            (ecC, s1C', _) <- readProcessWithExitCode Constants.coqExecutable [fwCname] []
                             case (ecP, ecC, Constants.isAbnormallyPrinted k) of
                                 (ExitFailure _ , _ , _) -> do
                                                              putStrLn ("Error in coqc: " ++ fwPname)
@@ -204,56 +227,62 @@ getPrintedStatement (k, sts) =  do
                                                              clearCoqGeneratedFiles [fwPname', fwCname'] 
                                                              return Nothing
                                 _ -> do
-                                        let gfilename = DT.unpack $ libname sts
-                                        let gmodname = DT.unpack $ modname sts
+                                        let s1P = DT.pack s1P'
+                                        let s1C = DT.pack s1C'
+                                        let gfilename = libname sts
+                                        let gmodname = modname sts
                                         -- Require Export "MainLib"                                                   
-                                        let header = (Constants.coqExportLib gfilename) ++ (Constants.coqImportMod gmodname)
+                                        let header = (Constants.coqExportLib gfilename) <> (Constants.coqImportMod gmodname)
                                         -- get a term definition without name and with type at the end
-                                        let prebody = SU.strip $ Prelude.head $ SU.split Constants.coqPrintCommentsDelimiter s1P
+                                        let prebody = DT.strip $ Prelude.head $ DT.splitOn Constants.coqPrintCommentsDelimiter s1P
                                         -- get a short name and type as a list
-                                        let firstword = Prelude.head $ SU.split Constants.coqSpace prebody
-                                        let pretypename = SU.split Constants.coqTypeDelimiter $ SU.strip
-                                                          $ Prelude.head $ SU.split Constants.coqPrintCommentsDelimiter s1C
+                                        let firstword = Prelude.head $ DT.splitOn Constants.coqSpace prebody
+                                        let pretypename = DT.splitOn Constants.coqTypeDelimiter $ DT.strip
+                                                          $ Prelude.head $ DT.splitOn Constants.coqPrintCommentsDelimiter s1C
                                         -- retrieve short name
                                         let shortname = Prelude.head pretypename
                                         -- retrieve type name
-                                        let typename = SU.strip $ SU.join Constants.coqTypeDelimiter
+                                        let typename = DT.strip $ DT.intercalate Constants.coqTypeDelimiter
                                                        $ Prelude.tail pretypename
                                         -- strip the type from the prebody
-                                        let typeStrippedBody = SU.strip
-                                                               $ Common.removeEndFromString (Constants.coqTypeDelimiter ++ typename)
-                                                               $ SU.join Constants.coqPrintEqSign $ Prelude.tail
-                                                               $ SU.split Constants.coqPrintEqSign prebody
+                                        let typeStrippedBody = DT.strip
+                                                               $ Common.removeEndFromText (Constants.coqTypeDelimiter <> typename)
+                                                               $ DT.intercalate Constants.coqPrintEqSign $ Prelude.tail
+                                                               $ DT.splitOn Constants.coqPrintEqSign prebody
                                         -- construct the body
                                         -- putStrLn $ "First word: " ++ firstword
                                         -- the hack with firstword is needed in particular for classes, extracted as inductives
                                         -- so when firstword==shortname it cannot be compiled, so must be processed alternatively
                                         -- but otherwise could be used as it is
-                                        let body =  if (Constants.isAbnormallyPrinted k) && (SU.strip firstword == SU.strip shortname) then
-                                                       if k == Axiom || k == Variable then
-                                                          Constants.coqDefineTerm shortname typename ""
-                                                       else 
+                                        let body =  if k == Axiom || k == Variable then
+                                                       Constants.coqDefineTerm shortname typename ""
+                                                    else 
+                                                       if (Constants.isAbnormallyPrinted k) && (DT.strip firstword == DT.strip shortname) then 
                                                           Constants.coqDefineTerm shortname typename typeStrippedBody
-                                                    else
-                                                       prebody ++ [Constants.coqStatementDelimiter]
+                                                       else
+                                                          prebody <> (DT.singleton Constants.coqStatementDelimiter)
                                         -- construct the file contents
                                         clearCoqGeneratedFiles [fwPname', fwCname'] 
                                         return $ Just (header, body)
 
 
-generateUnresolvedFile :: CoqTerm -> PreTheory a -> [(CoqStatementName, String)] -> IO (Maybe (CoqStatementName, String))
+generateUnresolvedFile :: CoqTerm -> PreTheory a -> [(CoqStatementName, FilePath)] -> IO (Maybe (CoqStatementName, FilePath))
 generateUnresolvedFile ct@(k, sts) thm filem =
-                                    if (Map.member sts thm) || (Constants.resourceKind k /= Resource) then return Nothing
-                                    else do
+                             if (Map.member sts thm) || (Constants.resourceKind k /= Resource) then return Nothing
+                             else 
+                                   let mf = Map.lookup sts $ Map.fromList filem in
+                                   case mf of
+                                    Just f -> return Nothing
+                                    Nothing -> do
                                         mhb <- getPrintedStatement ct
                                         case mhb of
                                           Nothing -> do
                                                       putStrLn "Cannot generate term body"
                                                       return Nothing
                                           Just (header, body) -> do
-                                                  let mname = DT.unpack $ modname sts
-                                                  let fqstname = DT.unpack $ fqStatementName sts  
-                                                  let newst = header ++ body                              
+                                                  let mname = modname sts
+                                                  let fqstname = fqStatementName sts  
+                                                  let newst = header <> body                              
                                                   let idChunk = Ident.id $ Ident.ByBinary (libname sts, mname, body)
                                                   let newfn = Constants.generatedFilePrefix ++ (toString idChunk)
                                                   let idFile = Ident.id $ Ident.ByBinary newfn
@@ -275,28 +304,27 @@ generateUnresolvedFile ct@(k, sts) thm filem =
                                                                                   return $ Just (sts, newfn)
                                                                    Nothing -> do
                                                                                 let frname = newfn ++ Constants.vernacFileSuffix
-                                                                                putStrLn $ "Writing chunk for " ++ fqstname
-                                                                                            ++ ":\n" ++ newst
-                                                                                writeFile frname newst
+                                                                                putStrLn $ DT.unpack $ "Writing chunk for " <> fqstname <> ":\n" <> newst
+                                                                                TextIO.writeFile frname newst
                                                                                 return $ Just (sts, newfn)
                                 
 
 --(a -> b -> a) -> a -> [b] -> a
 --(b -> a -> m b) -> b -> t a -> m b
 -- all new statements -> theory -> list of (sts, filenames) 
-generateUnresolvedFiles :: [CoqTerm] -> PreTheory a -> IO [(CoqStatementName, String)]
-generateUnresolvedFiles cts thm = do                                     
+generateUnresolvedFiles :: [CoqTerm] -> PreTheory a -> [(CoqStatementName, FilePath)] -> IO [(CoqStatementName, FilePath)]
+generateUnresolvedFiles cts thm tsf = do                                     
                                     mfiles <- foldlM (\fm u -> do
-                                                               mts <- generateUnresolvedFile u thm fm
+                                                               mts <- generateUnresolvedFile u thm (fm ++ tsf)
                                                                case mts of
                                                                  -- already in theory or impossible to generate 
                                                                  Nothing -> return fm
                                                                  Just x -> return $ (x:fm)  
                                                          ) [] cts
                                     -- nub could be omitted if all correct
-                                    return $ List.nub mfiles
+                                    return mfiles -- $ List.nub mfiles 
 
-generateUnresolvedFilesForDependencies sts thm = generateUnresolvedFiles (List.nub $ Prelude.concat $ List.map (List.map fst . stuses) sts) thm
+generateUnresolvedFilesForDependencies sts thm tsf = generateUnresolvedFiles (List.nub $ Prelude.concat $ List.map (List.map fst . stuses) sts) thm tsf
                                         
 -- after generation new files, original lib name should be changed to the filenames generated 
 changeTermLib :: CoqTerm -> Map.Map CoqStatementName String -> CoqTerm
@@ -309,19 +337,15 @@ changeTermLib (k,t) m = let filen = Map.lookup t m in
 removeSomeStatements :: [StatementA a] -> [StatementA a]
 removeSomeStatements sts = List.filter (\s -> stkind s /= Constructor) sts
 
-
--- removes Variables as dependencies - as they are bound
--- removes self - referencing (it is NOT! safe, cannot be replaced further by another name)
--- removes dublicates in uses
--- removes dublicates in the main list - is it needed????
 adjustStatements :: [PreStatementWithPositions] -> [PreStatementWithPositions]
 adjustStatements =  -- List.nubBy eqStatement .
-                    List.map (\s -> s {stuses = List.map (\u -> if (fst u == (stkind s, stname s)) then
-                                                                   ((SelfReference, stname s), snd u)
+                    List.map (\s -> s {stuses = List.map (\u -> let pos = List.nub $ snd u in
+                                                                if (fst u == (stkind s, stname s)) then
+                                                                   ((SelfReference, stname s), pos)
                                                                 else
                                                                    if (fst . fst) u == Variable then
-                                                                      ((BoundVariable, snd $ fst u), snd u)
-                                                                   else u) $ List.nub $ stuses s})
+                                                                      ((BoundVariable, snd $ fst u), pos)
+                                                                   else (fst u, pos)) $ stuses s})
 
 -- think of kind
 eqStatement :: StatementA a -> StatementA a -> Bool
@@ -331,6 +355,8 @@ eqStatement s1 s2 = (stname s1 == stname s2) &&
 -- NB!: if used term is declared inside internal module
 -- need to look upper
 -- that is bug in Coq
+
+{-- seems to be obsolete
 rereferInductives:: [PreStatementWithPositions] -> [PreStatementWithPositions]
 rereferInductives sts = let m = Map.fromList $ List.map (\s -> (stname s, s)) sts in
                         let look st =
@@ -349,20 +375,14 @@ rereferInductives sts = let m = Map.fromList $ List.map (\s -> (stname s, s)) st
                                                                                Nothing -> u
                                                                                Just ref -> ((fst $ fst u, stname ref), snd u)
                                                                     in u'
-                                                                 {--in
-                                                                    if ((fst . fst) u' == Constructor) then
-                                                                       let mcons = Map.lookup (snd $ fst u) m in
-                                                                       case mcons of
-                                                                         Nothing -> u'
-                                                                         Just constr -> Common.headWithDefault u' $ stuses constr
-                                                                    else u' --}
                                                               ) $ stuses s}) sts 
+
 
 adjustRecursive :: [PreStatementWithPositions] -> [PreStatementWithPositions]
 adjustRecursive sts = let sts' = adjustStatements $ rereferInductives sts in
                       if (sts' == sts) then sts
                       else adjustRecursive sts'
-
+--}
 
 -- do not know whether it is efficient to do like this
 -- but the position is given in bytes and chars may occupy more bytes
@@ -374,8 +394,6 @@ takeFromCode (CoqText t) (GP.GlobFilePosition s e) = TE.decodeUtf8
                                                      $ TE.encodeUtf8 t
 takeFromCode (CoqCodeParts l) _ = ""
 
-
--- DBS.unpack $ DBS.take (e-s+1) $ DBS.drop s $ DBS.pack $ DT.unpack t
 
 checkDependencies :: [PreStatementWithPositions] -> IO [PreStatementWithPositions]
 checkDependencies sts = do
@@ -399,18 +417,19 @@ fromCode :: Code CoqTerm -> Text
 fromCode (CoqText t)  = t
 fromCode (CoqCodeParts l) = List.foldl (\acct e -> case e of
                                                 CoqCodeText t -> DT.append acct t
-                                                CoqCodeEntry ct -> DT.append acct $ DT.append (if (fst ct /= BoundVariable) then "btf_" else "") $ sname $ snd ct) "" l
+                                                CoqCodeEntry ct -> DT.append acct $ DT.append (if (fst ct /= BoundVariable) then ((libname $ snd ct) <> "_")  else "") $ sname $ snd ct) "" l
 
 
 -- foldl :: (a -> b -> a) -> a -> [b] -> a
 transformCode :: [CoqTermEntry] -> Code CoqTermEntry -> Code CoqTerm
+transformCode _ ct@(CoqText "") = CoqCodeParts []
 transformCode uslist ct@(CoqText t) = let uslist' = Prelude.concat $ List.map (\u -> List.map (\p -> (fst u, p)) $ snd u) uslist in
-                                   let ussorted = List.sortBy (\u1 u2 -> compare (GP.espos $ snd u1) (GP.espos $ snd u2)) uslist' in                                   
-                                   let (codeparts', p) = List.foldl (\(l,p) u -> if (GP.espos $ snd u) > p then (l ++ [CoqCodeText $ takeFromCode ct $ GP.GlobFilePosition p ((GP.espos $ snd u) - 1)] ++
+                                      let ussorted = List.sortBy (\u1 u2 -> compare (GP.espos $ snd u1) (GP.espos $ snd u2)) uslist' in                                   
+                                      let (codeparts', p) = List.foldl (\(l,p) u -> if (GP.espos $ snd u) > p then (l ++ [CoqCodeText $ takeFromCode ct $ GP.GlobFilePosition p ((GP.espos $ snd u) - 1)] ++
                                                                                                             [CoqCodeEntry $ fst u],
                                                                                                        (GP.eepos $ snd u) + 1)
                                                                                                  else (l ++ [CoqCodeEntry $ fst u], (GP.eepos $ snd u) + 1)) ([],0) ussorted in
-                                   CoqCodeParts $ codeparts' ++ [CoqCodeText $ takeFromCode ct $ GP.GlobFilePosition p ((DT.length t) - 1)]
+                                   CoqCodeParts $ codeparts' ++ [CoqCodeText $ takeFromCode ct $ GP.GlobFilePosition p ((DBS.length $ TE.encodeUtf8 t) - 1)]
                                    
 
 -- suggest to be never called
@@ -422,12 +441,13 @@ transformCode _ (CoqCodeParts pts) = CoqCodeParts (List.map (\pt -> case pt of
 transformStatement :: PreStatementWithPositions -> PreStatementWithList
 transformStatement (Statement stn stk stc sts stu) = Statement stn stk (transformCode stu stc) sts (List.map fst stu) 
 
-extractStatements0 :: [String] -> [String] -> [PreStatementWithPositions] -> IO [PreStatementWithList]
-extractStatements0 [] accf acc = return $ List.map transformStatement acc -- checkDependencies acc
-extractStatements0 (fn:fs) accf acc = do                            
+-- files to process -> processed files -> map of extracted sts to files -> accumulated list of extracted sts -> final list of extracted sts
+extractStatements0 :: [String] -> [String] -> [(CoqStatementName, String)] -> [PreStatementWithPositions] -> IO [PreStatementWithList]
+extractStatements0 [] accf acct accs = return $ List.map transformStatement accs -- checkDependencies acc
+extractStatements0 (fn:fs) accf acct accs = do                            
                             if (List.elem fn accf) then do
                                                       putStrLn $ "File already processed: " ++ fn
-                                                      extractStatements0 fs accf acc
+                                                      extractStatements0 fs accf acct accs
                             else do
                                let vFile = fn ++ Constants.vernacFileSuffix
                                let gFile = fn ++ Constants.globFileSuffix
@@ -435,26 +455,30 @@ extractStatements0 (fn:fs) accf acc = do
                                case ec of
                                  ExitFailure _ -> do
                                                    putStrLn ("Error in coqc: " ++ vFile)
-                                                   extractStatements0 fs (fn:accf) acc
+                                                   extractStatements0 fs (fn:accf) acct accs
                                  ExitSuccess ->	 do
-                                                   putStrLn ("coqc output:\n" ++ s1)
+                                                   -- putStrLn ("coqc output:\n" ++ s1)
                                                    globfile  <- readFile gFile                                                  
                                                    case (PS.parse GP.globfileData "" globfile) of
                                                        Left err -> do
                                                                      putStrLn "Parse error: " >> print gFile >> print err
-                                                                     extractStatements0 fs (fn:accf) acc
+                                                                     extractStatements0 fs (fn:accf) acct accs
                                                        Right (dig, lib, ent)  -> do
                                                                    sts' <- collectStatements ent vFile lib
-                                                                   let sts = adjustRecursive sts'
-                                                                   let newacc = adjustRecursive $ sts ++ acc
-                                                                   let thm = Map.fromList $ List.map (\s -> (stname s, s)) newacc
-                                                                   newfiles <- generateUnresolvedFilesForDependencies sts thm
-                                                                   let newnames = Map.fromList newfiles
-                                                                   let chacc = List.map (\s -> s{stuses = List.map (\u -> (changeTermLib (fst u) newnames, snd u)) $ stuses s}) newacc
-                                                                   let newacc' = adjustRecursive chacc 
-                                                                   let newfiles' = List.nub $ (List.map snd newfiles) ++ fs
+                                                                   let sts = adjustStatements sts'
+                                                                   let newacc = sts ++ accs
+                                                                   let thm = Map.fromList $ List.map (\s -> (stname s, s)) newacc                                                                   
+                                                                   acct' <- generateUnresolvedFilesForDependencies sts thm acct
+                                                                   let newacct = acct' ++ acct
+                                                                   let newnames = Map.fromList newacct
+                                                                   let chacc = List.map (\s ->
+                                                                                  s{stuses = List.map (\u ->
+                                                                                       (changeTermLib (fst u) newnames, snd u))
+                                                                                         $ stuses s}) newacc
+                                                                   let newacc' = chacc 
+                                                                   let newfiles' = List.nub $ (List.map snd acct') ++ fs                                                                   
                                                                    putStrLn $ "File " ++ fn ++ " has been processed, remaining " ++ (show $ List.length newfiles')
-                                                                   extractStatements0 newfiles' (fn:accf) newacc'
+                                                                   extractStatements0 newfiles' (fn:accf) newacct newacc'
                                       
 
                            
@@ -468,8 +492,7 @@ extractSymbols fn = do
                         ExitFailure _ -> do
                                           putStrLn ("Error in coqc: " ++ vFile)
                                           return []
-                        ExitSuccess ->	 do
-                                           -- putStrLn ("coqc output:\n" ++ s1)
+                        ExitSuccess ->	 do                                           
                                            globfile <- readFile gFile                                                  
                                            case (PS.parse GP.globfileData "" globfile) of
                                                Left err -> do
@@ -477,10 +500,8 @@ extractSymbols fn = do
                                                             return []
                                                Right (dig, lib, ent)  -> do
                                                             sts' <- collectStatements ent vFile lib
-                                                            let sts = removeSomeStatements $ adjustRecursive sts'
+                                                            let sts = removeSomeStatements $ adjustStatements sts'
                                                             return (List.map (\s -> (stkind s, stname s)) sts)
-
--- IO (Maybe (CoqStatementName, String))
 
 printCoqSymbols :: [CoqTerm] -> IO [String]
 printCoqSymbols [] = return []
@@ -495,31 +516,52 @@ extractStatements :: [String] -> IO [PreStatementWithList]
 extractStatements fns = do
                           newfs' <- mapM (\fn -> extractSymbols fn >>= printCoqSymbols) fns
                           let newfs = Prelude.concat newfs'
-                          extractStatements0 newfs [] [] 
+                          extractStatements0 newfs [] [] []
 
 
-unfoldUses :: [PreStatementWithList] -> PreTheoryWithList -> [[PreStatementWithList]]
-unfoldUses [] _ = []
-unfoldUses (t:ts) thm = ut:(unfoldUses ts thm) where
-                        ut = let usm = catMaybes $ List.map (\u -> if isExtractable u then Map.lookup (snd u) thm else Nothing) (stuses t) in
-                             List.nub $ (t:(Prelude.concat $ unfoldUses usm thm))
-                        isExtractable u = (fst u /= SelfReference) && (fst u /= BoundVariable) && (fst u /= LocalConstructor)    
+unfoldUses :: [PreStatementWithList] -> [PreStatementWithList] -> PreTheoryWithList -> IO [PreStatementWithList]
+unfoldUses [] acct _ = return acct
+unfoldUses (t:ts) acct thm = do
+                         putStrLn $ "Unfolding " ++ (DT.unpack $ sname $ stname t) ++ ", remaining " ++ (show $ List.length ts)
+                         let b = List.notElem t acct 
+                         let isExtractable u = (fst u /= SelfReference) && (fst u /= BoundVariable) && (fst u /= LocalConstructor)
+                         let usm = catMaybes $
+                                          List.map (\u -> if isExtractable u then Map.lookup (snd u) thm else Nothing) (stuses t)
+                         if b then                             
+                              unfoldUses (usm ++ ts) (t:acct) thm
+                         else do
+                                putStrLn "skipping..."
+                                unfoldUses ts acct thm
 
+unfoldUsesList :: [PreStatementWithList] -> PreTheoryWithList -> IO [[PreStatementWithList]]
+unfoldUsesList sts th = mapM (\s -> unfoldUses [s] [] th) sts 
 
 ordStatement :: PreStatementWithList -> PreStatementWithList -> Common.PartOrdering
-ordStatement s1 s2 = if (List.elem (stname s1) (List.map snd $ stuses s2)) then Common.PLT else
+{--ordStatement s1 s2 = if (List.elem (stname s1) (List.map snd $ stuses s2)) then Common.PLT else
                      if (List.elem (stname s2) (List.map snd $ stuses s1)) then Common.PGT else
                      if (stname s1 == stname s2) then Common.PEQ else
                      Common.PNC
+--}
 
-extractTerms :: [String] -> [PreStatementWithList] -> [[[PreStatementWithList]]]
-extractTerms [] _ = []
-extractTerms (t:ts) sts = et:(extractTerms ts sts) where
-                          et = let fsts = List.filter (\s -> (sname $ stname s) == (DT.pack t)) sts in
-                               let m = Map.fromList $ List.map (\s -> (stname s, s)) sts in
-                               List.map (Common.partsort stname ordStatement) $ unfoldUses fsts m
+ordStatement s1 s2 = if (Map.member (stname s1) $ Map.fromList (List.map (\u -> (snd u, True)) $ stuses s2)) then Common.PLT else
+                     if (Map.member (stname s2) $ Map.fromList (List.map (\u -> (snd u, True)) $ stuses s1)) then Common.PGT else
+                     if (stname s1 == stname s2) then Common.PEQ else
+                     Common.PNC
 
-extractTermsCode :: [String] -> [PreStatementWithList] -> [[Text]]
-extractTermsCode ts sts = let extss = extractTerms ts sts in
-                          List.map (List.map (\ext -> DT.concat $ List.map (\s -> DT.append (fromCode $ stcode s)
+extractTerms :: [String] -> [PreStatementWithList] -> IO [[[PreStatementWithList]]]
+extractTerms [] _ = return []
+extractTerms (t:ts) sts = do
+                          et <- do
+                                  let fsts = List.filter (\s -> (sname $ stname s) == (DT.pack t)) sts 
+                                  let m = Map.fromList $ List.map (\s -> (stname s, s)) sts
+                                  r <- unfoldUsesList fsts m 
+                                  return $ List.map (Common.partsort stname ordStatement) r                                  
+                          r <- extractTerms ts sts 
+                          return $ et:r
+
+extractTermsCode :: [String] -> [PreStatementWithList] -> IO [[Text]]
+extractTermsCode ts sts = do
+                          extss <- extractTerms ts sts
+                          putStrLn $ "Length of extracted terms: " ++ (show $ List.map (List.map (\ext -> List.length ext)) extss)
+                          return $ List.map (List.map (\ext -> DT.concat $ List.map (\s -> DT.append (fromCode $ stcode s)
                                                       $ DT.append "\n(* end " $ DT.append (fqStatementName $ stname s) " *)\n\n") ext)) extss
