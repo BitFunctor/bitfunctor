@@ -5,8 +5,8 @@ version:             0.1.0.0
 homepage:            http://bitfunctor.net,
                      https://github.com/BitFunctor/bitfunctor
 bug-reports:         https://github.com/BitFunctor/bitfunctor/issues
--- license:
--- license-file:        LICENSE
+license:             MIT
+license-file:        LICENSE
 author:              andruiman <andruiman@gmail.com>,
                      Sergey Kazenyuk <kazenyuk@gmail.com>
 maintainer:          andruiman <andruiman@gmail.com>,
