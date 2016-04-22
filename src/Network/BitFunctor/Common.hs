@@ -5,6 +5,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Data.Char (isSpace)
 
+
 spanEnd :: (a -> Bool) -> [a] -> ([a], [a])
 spanEnd p l = let (l1,l2) = List.span p $ List.reverse l in
               (List.reverse l2, List.reverse l1)

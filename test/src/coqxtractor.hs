@@ -35,6 +35,7 @@ main = do
                               else
                                     putStrLn $ "?Found: " ++ (show u)
                         else return ())
+       {--
        putStrLn "Checking for cycles..."
        forM_ extractedStms (\s -> do
                                      putStrLn $ "Checking " ++ (show $ stname s)
@@ -48,6 +49,7 @@ main = do
                                                                             else
                                                                                putStrLn $ "   Dependence " ++ (show $ snd u) ++ " is OK"  
                                                                else putStrLn $ "   Dependence " ++ (show $ snd u) ++ " is unextractable"))
+       --}
 
        putStrLn "Libraries have been processed, extracting terms..."
        {--

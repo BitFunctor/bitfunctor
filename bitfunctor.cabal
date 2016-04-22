@@ -30,9 +30,10 @@ library
                        Network.BitFunctor.State.Ledger,
                        Network.BitFunctor.Theory.Complexity,
                        Network.BitFunctor.Theory.Types,
-                       Network.BitFunctor.Theory.Coq.Constants,
-                       Network.BitFunctor.Theory.Coq.GlobFileParser,
-                       Network.BitFunctor.Theory.Coq.StatementExtraction,
+                       Network.BitFunctor.Theory.Coq.Types, 
+                       Network.BitFunctor.Theory.Coq.Extraction.Constants,
+                       Network.BitFunctor.Theory.Coq.Extraction.GlobFileParser,
+                       Network.BitFunctor.Theory.Coq.Extraction.FileExtraction,
                        Network.BitFunctor.Token,
                        Network.BitFunctor.Transaction,
                        Network.BitFunctor.Transaction.Types

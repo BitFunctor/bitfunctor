@@ -1,109 +1,64 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RankNTypes  #-}
 
 module Network.BitFunctor.Theory.Types where
 
-import qualified Data.Map as Map
-import Data.ByteString
-import GHC.Generics
-import Data.Aeson
-import Data.Aeson.Types (typeMismatch)
-import Control.Applicative
-import Data.Text as DT
-import qualified Data.Text.Encoding as TE
-import Data.Binary
-import qualified Network.BitFunctor.Crypto.Hash as Hash
-import qualified Data.Serialize as DS
-import qualified Data.ByteString as DBS
-import qualified Data.ByteString.Base16 as B16 (encode, decode)
-import qualified Data.ByteArray as DBA (convert)
+import Data.Text
+import Data.Char
+import Data.Foldable
+import Data.Monoid
+import Control.Monad
 
+import Network.BitFunctor.Common
 
-data CoqCodePart a = CoqCodeText Text | CoqCodeEntry a deriving (Eq, Show, Generic)
+class (PartOrd a) where
+    partCompare :: a -> a -> PartOrdering
 
-data Code a = CoqText Text | CoqCodeParts [CoqCodePart a]
-              deriving (Eq, Show, Generic)
+class (Codeable a) where
+    toText :: a -> Text
+    fromText :: Text -> a
 
--- 20+1 constructors
-data CoqKind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof |
-               Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef |
-               Class | Record | Projection | Method | SelfReference | BoundVariable | LocalConstructor
-            deriving (Eq, Ord, Show, Generic)
+class (Nameable a) where
+    toPrefix :: Char -> a -> Text
+    toSuffix :: a -> Text
 
-data ResourceKind = Resource | StopStatement | IgnorableRes
-                    deriving (Eq, Show)
+toFQName :: Nameable a => Char -> a -> Text
+toFQName c x = (toPrefix c x) <> (singleton c) <> (toSuffix x)
 
--- obsolete type, refactoring is needed
-data Kind = Type0 | Function0 | Theorem0
-            deriving (Eq, Show, Generic)
+class NamedPartable x where
+    toParts :: forall a m . (Monad m, Foldable m) => x -> m a
+    toNamedParts :: forall b m . (Monad m, Foldable m, Nameable b) => x -> m b
 
---instance FromJSON Code where
---  parseJSON (Object c) = CoqText <$> c .: "coqText"
---  parseJSON invalid    = typeMismatch "Code" invalid
+type CodeA t a b = Either a (t (Either a b))
 
---instance ToJSON Code where
--- toJSON (CoqText c) = object [ "coqText" .= show c ]
+instance (Codeable a, Codeable b) => Codeable (Either a b) where
+    fromText t = Left (fromText t)
+    toText (Left x) = toText x
+    toText (Right x) = toText x
 
+instance (Codeable a, Codeable b, Foldable t) => Codeable (CodeA t a b) where
+    fromText t = Left (fromText t)
+    toText (Left x) = toText x
+    toText (Right mab) = Data.Foldable.foldl (\acc c -> acc <> (toText c)) empty mab
 
---instance FromJSON Kind where
--- parseJSON (String "Type")     = return Type0
--- parseJSON (String "Function") = return Function0
--- parseJSON (String "Theorem")  = return Theorem0
--- parseJSON invalid             = typeMismatch "Kind" invalid
+instance NamedPartable (CodeA m a b)  where
+    toParts (Left x) = fail "Partable: no parts in raw code"
+    toParts (Right x) = x
+    toNamedParts (Left x) = fail "Partable: no named parts in raw code"    
+    toNamedParts (Right mab) = Data.Foldable.foldl (\acc ab -> case ab of
+                                                                 Left x -> acc
+                                                                 Right y -> acc <> y) mempty mab
 
---instance ToJSON Kind where
--- toJSON Type0     = toJSON ("Type"     :: String)
--- toJSON Function0 = toJSON ("Function" :: String)
--- toJSON Theorem0  = toJSON ("Theorem"  :: String)
+{--
+data (Nameable a, Nameable d, Foldable t) =>
+                                 StatementA a b c t d e f =
+                                 StatementA { stname   :: a
+                                            , stkind   :: b 
+                                            , stcode   :: CodeA c t d
+                                            , stsource :: e -- source filename isomorphism
+                                            , stuses   :: t d } 
 
--- fromCode :: Code a -> Text
--- fromCode (CoqText t) = t
+data TheoryA a b c t d e = TheoryA { stlist :: [StatementA a b c t d e] }
+--}
 
-data CoqStatementName = CoqStatementName { libname :: Text
-                                         , modname :: Text
-                                         , sname :: Text} deriving (Eq, Ord, Show, Generic)
-
-fqStatementName s = DT.append (if (libname s == "") then "" else DT.append (libname s) ".")
-                    (DT.append (if (modname s == "") then "" else DT.append (modname s) ".") (sname s))  
-
-data StatementA a = Statement { stname :: CoqStatementName
-                              -- , origstname :: CoqStatementName
-                              , stkind :: CoqKind -- refactoring is needed
-                              , stcode :: Code a
-                              , stsource:: Hash.Hash Hash.Id -- source filename isomorphism
-                              , stuses :: [a]
-                           } deriving (Eq, Show, Generic)
-
-type HashId = Hash.Hash Hash.Id
-type Statement = StatementA HashId
-type Theory = Map.Map String Statement
-type HashCodePart = CoqCodePart HashId
-type HashCode = Code HashId
-
-type CoqTerm = (CoqKind, CoqStatementName)
-type PreTheory a = Map.Map CoqStatementName (StatementA a)
-type PreStatementWithList = StatementA CoqTerm
-type PreTheoryWithList = PreTheory CoqTerm
-type PreCode = Code CoqTerm
-type PreCodePart = CoqCodePart CoqTerm
-type PreTheoryList = [PreStatementWithList]
-
-
-instance Binary HashCodePart
-instance Binary HashCode
-instance Binary CoqKind
-instance Binary CoqStatementName
-instance Binary Statement
-
-instance DS.Serialize DT.Text where
-  put txt = DS.put $ TE.encodeUtf8 txt
-  get     = fmap TE.decodeUtf8 DS.get
-
-instance DS.Serialize CoqStatementName
-instance DS.Serialize CoqKind
-instance DS.Serialize PreCode
-instance DS.Serialize PreCodePart
-instance DS.Serialize PreStatementWithList
--- instance DS.Serialize PreTheoryList
