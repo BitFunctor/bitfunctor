@@ -21,11 +21,15 @@ instance Arbitrary Transaction where
     accFrom <- arbitrary
     accIdTo <- arbitrary
 
+    -- TxInput
     let frm = toAccountId accFrom
-    what <- arbitrary
+    what <- arbitrary   -- TxInputType
     let i = TxInput frm what
+
     let o = TxOutput accIdTo
     let f = BTF 1
     t <- arbitrary
+
     let tx = Transaction i o f t undefined
-    return . fromJust $ sign accFrom tx
+    let signedTx = fromJust $ sign accFrom tx
+    return signedTx
