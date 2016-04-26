@@ -2,6 +2,7 @@ module Network.BitFunctor.Tests where
 
 import Network.BitFunctor.Account (AccountId)
 import Network.BitFunctor.Block (Block)
+import Network.BitFunctor.Crypto.Hash (Hash, Id)
 import Network.BitFunctor.Crypto.Types (PublicKey, Signature)
 import Network.BitFunctor.Transaction (Transaction)
 import Network.BitFunctor.Transaction.Arbitrary()
@@ -23,6 +24,7 @@ tests = testGroup "Network.BitFunctor.Tests"
   , testProperty "binary_decode(binary_encode(pubkey)) == pubkey" (prop_binary_encdec_inv :: PublicKey -> Bool)
   , testProperty "binary_decode(binary_encode(sig)) == sig" (prop_binary_encdec_inv :: Signature -> Bool)
   , testProperty "binary_decode(binary_encode(accountid)) == accountid" (prop_binary_encdec_inv :: AccountId -> Bool)
+  , testProperty "binary_decode(binary_encode(hash_id)) == hash_id" (prop_binary_encdec_inv :: Hash Id -> Bool)
   , testProperty "binary_decode(binary_encode(tx)) == tx" (prop_binary_encdec_inv :: Transaction -> Bool)
   , testProperty "binary_decode(binary_encode(block)) == block" (prop_binary_encdec_inv :: Block -> Bool)
   ]

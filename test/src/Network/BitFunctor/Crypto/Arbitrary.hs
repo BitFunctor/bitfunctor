@@ -1,7 +1,9 @@
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Network.BitFunctor.Crypto.Arbitrary where
 
+import Network.BitFunctor.Crypto.Hash
 import Network.BitFunctor.Crypto.Types
 
 import Data.ByteArray (pack, Bytes)
@@ -30,3 +32,8 @@ instance Arbitrary Signature where
     let pk = toPublic sk
     bytes <- vectorOf 1 (arbitrary :: Gen Word8)
     return $ sign sk pk (pack bytes :: Bytes)
+
+instance (HashAlgorithm a) => Arbitrary (Hash a) where
+  arbitrary = do
+    bytes <- vectorOf 1 (arbitrary :: Gen Word8)
+    return $ hash (pack bytes :: Bytes)
