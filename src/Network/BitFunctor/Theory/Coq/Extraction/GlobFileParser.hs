@@ -1,4 +1,4 @@
-module Network.BitFunctor.Theory.Coq.GlobFileParser  where
+module Network.BitFunctor.Theory.Coq.Extraction.GlobFileParser  where
 
 import Text.ParserCombinators.Parsec
 import Data.Char (isSpace)
@@ -6,15 +6,20 @@ import Text.ParserCombinators.Parsec.Number (decimal, int, nat)
 import qualified Data.String.Utils as SU
 import Data.Maybe (fromMaybe)
 
-import Network.BitFunctor.Theory.Types
-import qualified Network.BitFunctor.Theory.Coq.Constants as Constants
+import Network.BitFunctor.Theory.Coq.Types
+import qualified Network.BitFunctor.Theory.Coq.Extraction.Constants as Constants
 
 -- the internal Coq hash
 type GlobFileDigest = String
 -- the name of library  - the same as the file name
-type GlobFileName = String
+type GlobFileName = FilePath
 
 data GlobFilePosition = GlobFilePosition {espos:: Int, eepos:: Int} deriving (Eq, Show)
+
+adjustGlobFilePosition :: Int -> GlobFilePosition -> GlobFilePosition
+adjustGlobFilePosition n (GlobFilePosition x y) = GlobFilePosition (x+n) (y+n)
+
+
 -- the general entry inside .glob file
 data GlobFileRawEntry = GlobFileRawEntry {epos:: GlobFilePosition, 
                                           ekind:: CoqKind, -- the kind of the entry
