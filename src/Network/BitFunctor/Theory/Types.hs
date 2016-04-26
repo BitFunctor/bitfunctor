@@ -14,12 +14,19 @@ import Data.Monoid
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.List as List
+import qualified Data.Serialize as Serz
+import qualified Data.Text.Encoding as TE
 
 import Network.BitFunctor.Common
 
 -- remove from here
 class (PartOrd a) where
     partCompare :: a -> a -> PartOrdering
+
+instance Serz.Serialize Text where
+  put txt = Serz.put $ TE.encodeUtf8 txt
+  get     = fmap TE.decodeUtf8 Serz.get
+
 
 -- can be statement code
 class (Codeable a) where
@@ -81,7 +88,7 @@ instance Codeable a => Codeable [a] where
     isTheoriable l = False
     isSelfReference l = False
 
-class (Eq s, Nameable a k, Codeable c, Codeable c', Nameable c' a, PartOrd s) =>
+class (Serz.Serialize s, Eq s, Nameable a k, Codeable c, Codeable c', Nameable c' a, PartOrd s) =>
                                        StatementC a k c c' s | s -> a, s -> c, s -> c' where
     toStatementName :: s -> a
     toStatementCode :: s -> CodeA c c'
@@ -89,7 +96,7 @@ class (Eq s, Nameable a k, Codeable c, Codeable c', Nameable c' a, PartOrd s) =>
     toStatementKey ::  s -> k
     toStatementKey = toKey . toStatementName
  
-class StatementC a k c c' s => TheoryC a k c c' s t | t -> s where
+class (Serz.Serialize t, StatementC a k c c' s) => TheoryC a k c c' s t | t -> s where
     toStatementList :: t -> [s]
     toStatementMap ::  t -> Map.Map k s
     toStatementMap x = let sts = toStatementList x in

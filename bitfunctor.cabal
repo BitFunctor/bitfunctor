@@ -89,24 +89,13 @@ test-suite tests
 executable coqxtractor
   main-is:             coqxtractor.hs
   build-depends:       base,
-                       bitfunctor,
-                       bytestring,
-                       base16-bytestring,
-                       aeson,
+                       argparser,
                        containers,
                        text,
-                       time,
-                       cryptonite >= 0.9,
-                       memory,
-                       binary,
-                       process,
-                       parsec,
-                       parsec-numbers,
-                       MissingH,
-                       directory,
                        split,
-                       utf8-string,
+                       time,
                        cereal,
-                       byteable
+                       bytestring,
+                       bitfunctor
   hs-source-dirs:      test/src
   default-language:    Haskell2010

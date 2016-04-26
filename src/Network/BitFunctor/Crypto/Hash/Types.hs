@@ -48,16 +48,16 @@ instance (HashAlgorithm a) => Binary (Hash a) where
 
 
 instance DS.Serialize (Digest Id) where
- put d = DS.put (convert d :: ByteString)
- get   = do
+  put d = DS.put (convert d :: ByteString)
+  get   = do
     bytes <- DS.get
     case digestFromByteString (bytes :: ByteString) of
       Just d  -> return d
       Nothing -> fail "binary: can't parse digest"
 
 instance DS.Serialize (Hash Id) where
- put (Hash digest) = DS.put digest
- get = DS.get >>= \algo -> return (Hash algo)
+  put (Hash digest) = DS.put digest
+  get = DS.get >>= \algo -> return (Hash algo)
 
 
 toString = DT.unpack . toText

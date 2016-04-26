@@ -55,7 +55,7 @@ instance Nameable CoqStatementName CoqStatementName where
                                           else l <> (Text.singleton c) <> m
    toSuffix = _sname
    fromSuffix t = CoqStatementName "" "" t
-   fromKey k t = k
+   fromKey k _ = k
 
 instance Codeable Text where
    toText = id
@@ -92,31 +92,35 @@ data CoqStatementA a = CoqStatementA { _stname :: CoqStatementName
                                      , _stcode :: CoqCode
                                      , _stsource :: Hash.Hash Hash.Id
                                      , _stuses :: [a]
-                                 } deriving (Eq, Show, Generic)
+                                     } deriving (Eq, Show, Generic)
 
 makeLenses ''CoqStatementA
 
-transformCoqStatement :: ([a] -> CoqCode -> CoqCode) -> CoqStatementA a -> CoqStatementT
-transformCoqStatement tc (CoqStatementA stn stk stc sts stu) = CoqStatementA stn stk (tc stu stc) sts []
+instance DS.Serialize CoqKind
+instance DS.Serialize UsesBottom
+instance DS.Serialize CoqStatementName
+instance Binary CoqStatementName
+instance DS.Serialize a => DS.Serialize (CoqStatementA a)
 
-instance Eq a => StatementC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) where
+instance (Eq a, DS.Serialize a) => StatementC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) where
     toStatementName = _stname
     toStatementCode = _stcode
     changeStatementCode c s = stcode .~ c $ s
     toStatementKey = _stname
 
 
-type PreCoqTheory a = Map.Map CoqStatementName (CoqStatementA a)
+type PreCoqTheory a = Map.Map CoqStatementName (CoqStatementA a) 
 
-data UsesBottom  = Bottom deriving Eq
+data UsesBottom  = Bottom deriving (Eq, Show, Generic)
 type CoqStatementT = CoqStatementA UsesBottom
 type CoqTheoryT = PreCoqTheory CoqStatementT
 
-instance Eq a => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) (PreCoqTheory a) where    
-    toStatementList t = List.map snd $ Map.toList t
+
+instance (Eq a, DS.Serialize a) => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) (PreCoqTheory a) where    
+    toStatementList t = Map.elems t
     toStatementMap t = t
 
-instance Eq a => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) [CoqStatementA a] where    
+instance (Eq a, DS.Serialize a) => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) [CoqStatementA a] where    
     toStatementList t = t
     
 
@@ -124,7 +128,9 @@ instance Eq a => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStat
 data Kind = Type0 | Function0 | Theorem0
             deriving (Eq, Show, Generic)
 
-instance Binary CoqStatementName
+
+-- instance DS.Serialize CoqTheoryT
+
 
 instance PartOrd (CoqStatementA a) where
    partCompare s1 s2 = let sc1 = s1^.stcode in

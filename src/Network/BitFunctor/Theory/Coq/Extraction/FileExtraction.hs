@@ -7,7 +7,6 @@
 module Network.BitFunctor.Theory.Coq.Extraction.FileExtraction  where
 
 import System.Process
-import GHC.IO.Handle
 import System.Exit
 import System.IO
 import qualified System.Directory as SD (doesFileExist)
@@ -23,7 +22,6 @@ import qualified Data.List as List
 import qualified Data.ByteString as DBS
 import qualified Data.ByteString.Char8 as DBS8
 import qualified Data.Map as Map
-import qualified Data.String.Utils as SU
 import Data.Foldable (foldlM)
 import qualified Data.Time as Time (getCurrentTime)
 import Data.Tuple (swap)
@@ -40,6 +38,7 @@ import qualified Network.BitFunctor.Theory.Utils as Utils
 import qualified Network.BitFunctor.Identifiable as Ident
 import qualified Network.BitFunctor.Theory.Coq.Extraction.GlobFileParser as GP
 
+-- local aliases
 type CoqTermEntry = (CoqTerm, [GP.GlobFilePosition])
 type PreStatementWithPositions = CoqStatementA CoqTermEntry
 type PreTheoryWithPositions = PreCoqTheory PreStatementWithPositions
@@ -219,9 +218,9 @@ getPrintedStatement (k, sts) =  do
                                         return $ Just (header, body)
 
 
-generateUnresolvedFile :: CoqTerm -> PreCoqTheory a -> [(CoqStatementName, FilePath)] -> IO (Maybe (CoqStatementName, FilePath))
-generateUnresolvedFile ct@(k, sts) thm filem =
-                             if (Map.member sts thm) || (Constants.resourceKind k /= Resource) then return Nothing
+generateUnresolvedFile :: CoqTerm -> PreCoqTheory a -> PreCoqTheory b -> [(CoqStatementName, FilePath)] -> IO (Maybe (CoqStatementName, FilePath))
+generateUnresolvedFile ct@(k, sts) thm thm' filem =
+                             if (Map.member sts thm) || (Map.member sts thm') || (Constants.resourceKind k /= Resource) then return Nothing
                              else 
                                    let mf = Map.lookup sts $ Map.fromList filem in
                                    case mf of
@@ -248,14 +247,20 @@ generateUnresolvedFile ct@(k, sts) thm filem =
                                                      Just _ -> do
                                                                      fail "- file generated but doesn't exist" 
                                                      Nothing -> do
-                                                                 let thm' = Map.fromList $ List.map (\(_,ps) -> (ps^.stsource, ps^.stname))
-                                                                                         $ Map.toList thm    
-                                                                 let mfile2 = Map.lookup idFile thm'
-                                                                 case mfile2 of
-                                                                   Just name -> do
+                                                                 let thm1 = Map.fromList $ List.map (\ps -> (ps^.stsource, ps^.stname))
+                                                                                         $ Map.elems thm
+                                                                 let thm2 = Map.fromList $ List.map (\ps -> (ps^.stsource, ps^.stname))
+                                                                                         $ Map.elems thm'    
+                                                                 let mfile1 = Map.lookup idFile thm1
+                                                                 let mfile2 = Map.lookup idFile thm2
+                                                                 case (mfile1, mfile2) of
+                                                                   (_, Just name2) -> do
                                                                                   putStrLn "- found in the Theory, but file doesn't exist?"
                                                                                   return $ Just (sts, newfn)
-                                                                   Nothing -> do
+                                                                   (Just name1, _) -> do
+                                                                                  putStrLn "- found in the Theory, but file doesn't exist?"
+                                                                                  return $ Just (sts, newfn)
+                                                                   (Nothing, Nothing) -> do
                                                                                 let frname = newfn ++ Constants.vernacFileSuffix
                                                                                 putStrLn $ DT.unpack $ "Writing chunk for " <> fqstname <> ":\n" <> newst
                                                                                 TextIO.writeFile frname newst
@@ -265,10 +270,10 @@ generateUnresolvedFile ct@(k, sts) thm filem =
 --(a -> b -> a) -> a -> [b] -> a
 --(b -> a -> m b) -> b -> t a -> m b
 -- all new statements -> theory -> list of (sts, filenames) 
-generateUnresolvedFiles :: [CoqTerm] -> PreCoqTheory a -> [(CoqStatementName, FilePath)] -> IO [(CoqStatementName, FilePath)]
-generateUnresolvedFiles cts thm tsf = do                                     
+generateUnresolvedFiles :: [CoqTerm] -> PreCoqTheory a -> PreCoqTheory b -> [(CoqStatementName, FilePath)] -> IO [(CoqStatementName, FilePath)]
+generateUnresolvedFiles cts thm thm' tsf = do                                     
                                     mfiles <- foldlM (\fm u -> do
-                                                               mts <- generateUnresolvedFile u thm (fm ++ tsf)
+                                                               mts <- generateUnresolvedFile u thm thm' (fm ++ tsf)
                                                                case mts of
                                                                  -- already in theory or impossible to generate 
                                                                  Nothing -> return fm
@@ -277,7 +282,8 @@ generateUnresolvedFiles cts thm tsf = do
                                     -- nub could be omitted if all correct
                                     return mfiles -- $ List.nub mfiles 
 
-generateUnresolvedFilesForDependencies sts thm tsf = generateUnresolvedFiles (List.nub $ Prelude.concat $ List.map (List.map fst . _stuses) sts) thm tsf
+-- List.map (List.map fst . _stuses)
+generateUnresolvedFilesForDependencies sts thm thm' tsf = generateUnresolvedFiles (List.nub $ Prelude.concat (mapped.mapped %~ fst $ mapped %~ _stuses $ sts)) thm thm' tsf
                                         
 -- after generation new files, original lib name should be changed to the filenames generated 
 changeTermLib :: Map.Map CoqStatementName FilePath -> CoqTerm -> CoqTerm
@@ -353,19 +359,22 @@ transformLeftCode uslist ct@(Left t) =
 -- suggest to be never called
 transformLeftCode _ (Right pts) = Right pts
 
+transformCoqStatement :: ([a] -> CoqCode -> CoqCode) -> CoqStatementA a -> CoqStatementT
+transformCoqStatement tc (CoqStatementA stn stk stc sts stu) = CoqStatementA stn stk (tc stu stc) sts []
+
 
 -- files to process -> processed files -> map of extracted sts to files -> accumulated list of extracted sts -> final list of extracted sts
-extractStatements0 :: [String] -> [String] -> [(CoqStatementName, String)] -> [PreStatementWithPositions] -> IO [CoqStatementT]
-extractStatements0 [] accf acct accs = do
+extractStatements0 :: [FilePath] -> [FilePath] -> [(CoqStatementName, FilePath)] -> [CoqStatementT] -> [PreStatementWithPositions] -> IO [CoqStatementT]
+extractStatements0 [] accf acct th accs = do
                                          putStrLn "Transforming code..."
                                          let tscode = List.map (transformCoqStatement transformLeftCode) accs
                                          putStrLn "Looking for the same codes..."
-                                         eqcode <- Extraction.foldEqualCode tscode
-                                         return eqcode
-extractStatements0 (fn:fs) accf acct accs = do                            
+                                         tsFolded <- Extraction.foldEqualCode $ List.nub $ tscode ++ th
+                                         return tsFolded
+extractStatements0 (fn:fs) accf acct th accs = do                            
                             if (List.elem fn accf) then do
                                                       putStrLn $ "File already processed: " ++ fn
-                                                      extractStatements0 fs accf acct accs
+                                                      extractStatements0 fs accf acct th accs
                             else do
                                let vFile = fn ++ Constants.vernacFileSuffix
                                let gFile = fn ++ Constants.globFileSuffix
@@ -373,33 +382,29 @@ extractStatements0 (fn:fs) accf acct accs = do
                                case ec of
                                  ExitFailure _ -> do
                                                    putStrLn ("Error in coqc: " ++ vFile)
-                                                   extractStatements0 fs (fn:accf) acct accs
+                                                   extractStatements0 fs (fn:accf) acct th accs
                                  ExitSuccess ->	 do
                                                    -- putStrLn ("coqc output:\n" ++ s1)
                                                    globfile  <- readFile gFile                                                  
                                                    case (PS.parse GP.globfileData "" globfile) of
                                                        Left err -> do
                                                                      putStrLn "Parse error: " >> print gFile >> print err
-                                                                     extractStatements0 fs (fn:accf) acct accs
+                                                                     extractStatements0 fs (fn:accf) acct th accs
                                                        Right (dig, lib, ent)  -> do
                                                                    sts' <- collectStatements ent vFile lib
                                                                    let sts = adjustStatements sts'
                                                                    let newacc = sts ++ accs
                                                                    let thm = toStatementMap newacc
-                                                                   acct' <- generateUnresolvedFilesForDependencies sts thm acct
+                                                                   let thm' = toStatementMap th
+                                                                   acct' <- generateUnresolvedFilesForDependencies sts thm thm' acct
                                                                    let newacct = acct' ++ acct
                                                                    let newnames = Map.fromList newacct
                                                                    let chacc = mapped.stuses.mapped._1 %~ (changeTermLib newnames) $ newacc 
- {-- List.map (\s ->
-                                                                                  s{stuses = List.map (\u ->
-                                                                                       (changeTermLib (fst u) newnames, snd u))
-                                                                                         $ stuses s}) newacc 
---}
                                                                    let newacc' = chacc 
                                                                    let newfiles' = List.nub $ (List.map snd acct') ++ fs
                                                                    putStrLn $ "File " ++ fn ++ " has been processed, remaining " ++
                                                                               (show $ List.length newfiles')
-                                                                   extractStatements0 newfiles' (fn:accf) newacct newacc'
+                                                                   extractStatements0 newfiles' (fn:accf) newacct th newacc'
                                       
 
                            
@@ -426,14 +431,15 @@ extractSymbols fn = do
 
 printCoqSymbols :: [CoqTerm] -> IO [FilePath]
 printCoqSymbols cts = do
-                       cts' <- mapM (\ct -> generateUnresolvedFile ct Map.empty []) cts
+                       cts' <- mapM (\ct -> generateUnresolvedFile ct Map.empty Map.empty []) cts
                        return $ List.map snd $ catMaybes cts'
  
 
-extractStatements :: [FilePath] -> IO [CoqStatementT]
-extractStatements fns = do
+extractStatements :: [FilePath] -> [CoqStatementT] -> IO [CoqStatementT]
+extractStatements fns th = do
                           newfs' <- mapM (\fn -> extractSymbols fn >>= printCoqSymbols) fns
                           let newfs = Prelude.concat newfs'
-                          extractStatements0 newfs [] [] []
+                          -- [FilePath] -> [FilePath] -> [(CoqStatementName, FilePath)] -> [CoqStatementT] -> [PreStatementWithPositions]
+                          extractStatements0 newfs [] [] th []
 
 

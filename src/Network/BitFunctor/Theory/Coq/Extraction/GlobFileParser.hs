@@ -1,10 +1,14 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Network.BitFunctor.Theory.Coq.Extraction.GlobFileParser  where
 
+import GHC.Generics
 import Text.ParserCombinators.Parsec
 import Data.Char (isSpace)
 import Text.ParserCombinators.Parsec.Number (decimal, int, nat)
 import qualified Data.String.Utils as SU
 import Data.Maybe (fromMaybe)
+import qualified Data.Serialize as DS
 
 import Network.BitFunctor.Theory.Coq.Types
 import qualified Network.BitFunctor.Theory.Coq.Extraction.Constants as Constants
@@ -14,7 +18,8 @@ type GlobFileDigest = String
 -- the name of library  - the same as the file name
 type GlobFileName = FilePath
 
-data GlobFilePosition = GlobFilePosition {espos:: Int, eepos:: Int} deriving (Eq, Show)
+data GlobFilePosition = GlobFilePosition {espos:: Int, eepos:: Int} deriving (Eq, Show, Generic)
+instance DS.Serialize GlobFilePosition
 
 adjustGlobFilePosition :: Int -> GlobFilePosition -> GlobFilePosition
 adjustGlobFilePosition n (GlobFilePosition x y) = GlobFilePosition (x+n) (y+n)
