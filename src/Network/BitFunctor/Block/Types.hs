@@ -31,8 +31,27 @@ data Block = Block { previous     :: Hash Id
                    } deriving (Show, Eq, Generic)
 
 instance Binary Block where
-  put = undefined
-  get = undefined
+  put block = do
+    put (0 :: Word8)
+    put $ previous block
+    put $ UTCTimeAsPOSIXSeconds $ timestamp block
+    put $ transactions block
+    put $ baseTarget block
+    put $ generator block
+    put $ signature block
+  get = do
+    tag <- get
+    case tag :: Word8 of
+      0 -> do
+        p <- get
+        utcFromPOSIXT <- get
+        txs <- get
+        tgt <- get
+        g <- get
+        s <- get
+        let (UTCTimeAsPOSIXSeconds t) = utcFromPOSIXT
+        return $ Block p t txs tgt g s
+      _ -> fail "binary: can't parse block (wrong tag)"
 
 
 instance Identifiable Block where
