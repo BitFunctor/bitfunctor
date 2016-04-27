@@ -1,109 +1,106 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RankNTypes  #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FunctionalDependencies  #-}
 
 module Network.BitFunctor.Theory.Types where
 
+import Data.Text
+import Data.Char
+import Data.Foldable
+import Data.Monoid
+import Control.Monad
 import qualified Data.Map as Map
-import Data.ByteString
-import GHC.Generics
-import Data.Aeson
-import Data.Aeson.Types (typeMismatch)
-import Control.Applicative
-import Data.Text as DT
+import qualified Data.List as List
+import qualified Data.Serialize as Serz
 import qualified Data.Text.Encoding as TE
-import Data.Binary
-import qualified Network.BitFunctor.Crypto.Hash as Hash
-import qualified Data.Serialize as DS
-import qualified Data.ByteString as DBS
-import qualified Data.ByteString.Base16 as B16 (encode, decode)
-import qualified Data.ByteArray as DBA (convert)
+
+import Network.BitFunctor.Common
+
+-- remove from here
+class (PartOrd a) where
+    partCompare :: a -> a -> PartOrdering
+
+instance Serz.Serialize Text where
+  put txt = Serz.put $ TE.encodeUtf8 txt
+  get     = fmap TE.decodeUtf8 Serz.get
 
 
-data CoqCodePart a = CoqCodeText Text | CoqCodeEntry a deriving (Eq, Show, Generic)
+-- can be statement code
+class (Codeable a) where
+    toText :: a -> Text
+    fromText :: Text -> a
+    isFQExtractable :: a -> Bool
+    isTheoriable :: a -> Bool
+    isSelfReference :: a -> Bool
 
-data Code a = CoqText Text | CoqCodeParts [CoqCodePart a]
-              deriving (Eq, Show, Generic)
-
--- 20+1 constructors
-data CoqKind = Unknown | Definition | Theorem | Notation | Tactic | Variable | Constructor | Proof |
-               Library | Module | Section | Inductive | Axiom | Scheme | ModType | Instance | SynDef |
-               Class | Record | Projection | Method | SelfReference | BoundVariable | LocalConstructor
-            deriving (Eq, Ord, Show, Generic)
-
-data ResourceKind = Resource | StopStatement | IgnorableRes
-                    deriving (Eq, Show)
-
--- obsolete type, refactoring is needed
-data Kind = Type0 | Function0 | Theorem0
-            deriving (Eq, Show, Generic)
-
---instance FromJSON Code where
---  parseJSON (Object c) = CoqText <$> c .: "coqText"
---  parseJSON invalid    = typeMismatch "Code" invalid
-
---instance ToJSON Code where
--- toJSON (CoqText c) = object [ "coqText" .= show c ]
+class (Ord k, Eq k) => Keyable a k | a -> k where
+    toKey :: a -> k
 
 
---instance FromJSON Kind where
--- parseJSON (String "Type")     = return Type0
--- parseJSON (String "Function") = return Function0
--- parseJSON (String "Theorem")  = return Theorem0
--- parseJSON invalid             = typeMismatch "Kind" invalid
+-- can be statement name
+class (Keyable a k) => Nameable a k where
+    toPrefix :: Char -> a -> Text
+    toSuffix :: a -> Text
+    fromSuffix :: Text -> a
+    toFQName :: Char -> a -> Text
+    toFQName c x = let p = toPrefix c x in
+                   let s = toSuffix x in 
+                   if Data.Text.null p then s                                    
+                                       else if Data.Text.null s then p
+                                            else p <> (singleton c) <> s
+    changeNameWith:: (k -> k -> Bool) -> k -> k -> a -> a
+    changeNameWith f kf kt x = if (f kf $ toKey x) then fromKey kt x else x
+    changeNameWithKey :: k -> k -> a -> a
+    changeNameWithKey = changeNameWith (==)
+    fromKey :: k -> a -> a
+ 
+type CodeA a b = Either a [Either a b]
 
---instance ToJSON Kind where
--- toJSON Type0     = toJSON ("Type"     :: String)
--- toJSON Function0 = toJSON ("Function" :: String)
--- toJSON Theorem0  = toJSON ("Theorem"  :: String)
-
--- fromCode :: Code a -> Text
--- fromCode (CoqText t) = t
-
-data CoqStatementName = CoqStatementName { libname :: Text
-                                         , modname :: Text
-                                         , sname :: Text} deriving (Eq, Ord, Show, Generic)
-
-fqStatementName s = DT.append (if (libname s == "") then "" else DT.append (libname s) ".")
-                    (DT.append (if (modname s == "") then "" else DT.append (modname s) ".") (sname s))  
-
-data StatementA a = Statement { stname :: CoqStatementName
-                              -- , origstname :: CoqStatementName
-                              , stkind :: CoqKind -- refactoring is needed
-                              , stcode :: Code a
-                              , stsource:: Hash.Hash Hash.Id -- source filename isomorphism
-                              , stuses :: [a]
-                           } deriving (Eq, Show, Generic)
-
-type HashId = Hash.Hash Hash.Id
-type Statement = StatementA HashId
-type Theory = Map.Map String Statement
-type HashCodePart = CoqCodePart HashId
-type HashCode = Code HashId
-
-type CoqTerm = (CoqKind, CoqStatementName)
-type PreTheory a = Map.Map CoqStatementName (StatementA a)
-type PreStatementWithList = StatementA CoqTerm
-type PreTheoryWithList = PreTheory CoqTerm
-type PreCode = Code CoqTerm
-type PreCodePart = CoqCodePart CoqTerm
-type PreTheoryList = [PreStatementWithList]
+toTextWithMap :: (Codeable a, Codeable b) => (b -> Text) -> CodeA a b -> Text
+toTextWithMap _ (Left x) = toText x
+toTextWithMap f (Right mab) = List.foldl (\acc c -> acc <> (case c of
+                                                             Left x -> toText x
+                                                             Right c -> f c)) empty mab
 
 
-instance Binary HashCodePart
-instance Binary HashCode
-instance Binary CoqKind
-instance Binary CoqStatementName
-instance Binary Statement
+fromCodeA :: (Codeable b, Nameable b k, Codeable a) => Char -> CodeA a b -> Text
+fromCodeA c = toTextWithMap $ \ct -> if (isFQExtractable ct) then toFQName c ct
+                                                             else toText ct
 
-instance DS.Serialize DT.Text where
-  put txt = DS.put $ TE.encodeUtf8 txt
-  get     = fmap TE.decodeUtf8 DS.get
+instance (Codeable a, Codeable b) => Codeable (Either a b) where
+    fromText t = Left (fromText t)
+    toText (Left x) = toText x
+    toText (Right x) = toText x
+    isFQExtractable (Left x) = False
+    isFQExtractable (Right x) = isFQExtractable x
+    isTheoriable (Left x) = False
+    isTheoriable (Right x) = isTheoriable x
+    isSelfReference (Left x) = False
+    isSelfReference (Right x) = isSelfReference x
 
-instance DS.Serialize CoqStatementName
-instance DS.Serialize CoqKind
-instance DS.Serialize PreCode
-instance DS.Serialize PreCodePart
-instance DS.Serialize PreStatementWithList
--- instance DS.Serialize PreTheoryList
+instance Codeable a => Codeable [a] where
+    fromText t = []    
+    toText l = List.foldl (\acc c -> acc <> (toText c)) empty l
+    isFQExtractable l = False
+    isTheoriable l = False
+    isSelfReference l = False
+
+class (Serz.Serialize s, Eq s, Nameable a k, Codeable c, Codeable c', Nameable c' a, PartOrd s) =>
+                                       StatementC a k c c' s | s -> a, s -> c, s -> c' where
+    toStatementName :: s -> a
+    toStatementCode :: s -> CodeA c c'
+    changeStatementCode :: CodeA c c' -> s -> s
+    toStatementKey ::  s -> k
+    toStatementKey = toKey . toStatementName
+ 
+class (Serz.Serialize t, StatementC a k c c' s) => TheoryC a k c c' s t | t -> s where
+    toStatementList :: t -> [s]
+    toStatementMap ::  t -> Map.Map k s
+    toStatementMap x = let sts = toStatementList x in
+                       let ksts = List.map (\s -> (toStatementKey s, s)) sts in
+                       Map.fromList ksts
+
+

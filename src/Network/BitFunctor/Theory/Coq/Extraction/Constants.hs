@@ -1,11 +1,15 @@
-module Network.BitFunctor.Theory.Coq.Constants  where
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
-import Network.BitFunctor.Theory.Types
+module Network.BitFunctor.Theory.Coq.Extraction.Constants  where
+
 import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Data.Monoid ((<>))
 
--- parser constants
+import Network.BitFunctor.Common
+import Network.BitFunctor.Theory.Coq.Types
+
 
 globDigestString = "DIGEST"
 globLibChar = 'F'
@@ -13,54 +17,57 @@ globResourceChar = 'R'
 coqIdentExtraChars = "._'\8322\8321"
 coqNotationExtraChars = ".<>[]'_,:=/\\+(){}!?*-|^~&@\8322\8321"
 globEmptySubEntryString = "<>"
-globLineNumbersDelimiter = ':'
+globLineNumbersDelimiter =  ':'
 coqModuleDelimiter = '.'
-coqStatementDelimiter = '.'
+coqStatementDelimiter =  '.'
 xtrFilePrefix = "SE"
 xtrPrintFilePrefix = "WP"
 xtrTypeFilePrefix = "WT"
 vernacFileSuffix = ".v"
 vernacBinaryFileSuffix = ".vo"
 globFileSuffix = ".glob"
-coqExportString = Text.pack "Require Export "
-coqImportString = Text.pack "Import "
-coqPrintTermString = Text.pack "Set Printing All.\nUnset Printing Universes.\nSet Printing Depth 1000.\nPrint "
+coqExportString = "Require Export "
+coqImportString =  "Import "
+coqPrintTermString = "Set Printing All.\nUnset Printing Universes.\nSet Printing Depth 1000.\nPrint "
 coqExecutable = "coqc"
-coqPrintCommentsDelimiter = Text.pack "\n\n"
+coqPrintCommentsDelimiter :: Text.Text =  "\n\n"
 coqTypeDelimiter = Text.singleton ':'
-coqDefinitionString = Text.pack "Definition "
-coqAxiomString = Text.pack "Axiom " 
-coqPrintEqSign = Text.singleton '='
-coqDefSign = Text.pack ":="
+coqDefinitionString = "Definition "
+coqAxiomString = "Axiom " 
+coqPrintEqSign = Text.singleton  '='
+coqDefSign =  ":="
 generatedFilePrefix = "Bitfunctor"
 nullLibString = ("" :: String )
-coqSpace = Text.pack " "
+coqSpace :: Text.Text  = " "
 
-
-(<>) :: Text.Text -> Text.Text -> Text.Text
-(<>) t1 t2 = Text.append t1 t2
 
 coqDefineTerm :: Text.Text -> Text.Text -> Text.Text -> Text.Text
 coqDefineTerm s t b = if (Text.null b) then
                          coqAxiomString <> s <> coqTypeDelimiter <> t <> (Text.singleton coqStatementDelimiter)
                       else
-                         coqDefinitionString <> s <> coqTypeDelimiter <> t <> coqDefSign <> b <> (Text.singleton coqStatementDelimiter)
+                         coqDefinitionString <> s <> coqTypeDelimiter <> t <> coqDefSign <> b <>  (Text.singleton coqStatementDelimiter)
 
 coqExportLib :: Text.Text -> Text.Text
 coqExportLib l | Text.null l = Text.empty
-               | otherwise = coqExportString <> l <> (Text.pack ".\n")
+               | otherwise = coqExportString <> l <> ".\n"
 
 coqPrintTerm :: Text.Text -> Text.Text
 coqPrintTerm t | Text.null t = Text.empty
-               | otherwise =  coqPrintTermString <> t <> (Text.pack ".\n")
+               | otherwise =  coqPrintTermString <> t <> ".\n"
 
 coqPrintType :: Text.Text -> Text.Text
 coqPrintType t | Text.null t = Text.empty
-               | otherwise = coqPrintTermString <> (Text.pack "Implicit ") <> t <> (Text.pack ".\n")
+               | otherwise = coqPrintTermString <> "Implicit " <> t <> ".\n"
 
 coqImportMod :: Text.Text -> Text.Text
 coqImportMod m | Text.null m = Text.empty
-               | otherwise =  coqImportString <> m <> (Text.pack ".\n")
+               | otherwise =  coqImportString <> m <> ".\n"
+
+fullPrintTerm l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
+   (coqExportLib l1) <> (coqExportLib l2') <> (coqImportMod m) <> (coqPrintTerm t)
+
+fullPrintType l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
+   (coqExportLib l1) <> (coqExportLib l2') <> (coqImportMod m) <> (coqPrintType t)
 
 -- different parser mappings
 
