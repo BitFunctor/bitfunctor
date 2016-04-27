@@ -25,12 +25,13 @@ import qualified Data.Time as Time (getCurrentTime)
 import qualified Data.Serialize as DS (decode, encode)
 import qualified Data.ByteString as BS (writeFile, readFile)
 
-data ExtractorArguments = ExtractorArguments [FilePath] FilePath FilePath [Text.Text]
+data ExtractorArguments = ExtractorArguments [FilePath] [Text.Text] FilePath FilePath [Text.Text]
                           deriving (Show) 
 
 xtractorArgsParser :: ParserSpec ExtractorArguments
 xtractorArgsParser = ExtractorArguments
   `parsedBy` optFlagArgs [] "f" [] (\b a -> b ++ [a])  `Descr` "vernac files to process"
+  `andBy` optFlagArgs [] "skip-checks" [] (\b a -> b ++ [Text.pack a]) `Descr` "skip particular check, or empty for all"
   `andBy` optFlag "" "wt" `Descr` "write to theory file"
   `andBy` optFlag "" "rt" `Descr` "read from theory file"   
   `andBy` optFlagArgs [] "e" [] (\b a -> b ++ [Text.pack a])  `Descr` "statements to extract"  
@@ -84,21 +85,23 @@ extractCoqLibraries libs th = do
                                putStrLn "Libraries have been processed."
                                return th'
 
-checkTheory :: [CoqStatementT] -> IO()
-checkTheory [] = return ()
-checkTheory th = do
+-- skip particular checks not implemented
+checkTheory :: [Text.Text] -> [CoqStatementT] -> IO()
+checkTheory _ [] = return ()
+checkTheory [] _ = return ()
+checkTheory _ th = do
                    putStrLn "Checking the theory..."
                    TE.checkTheoryConsistancy th
                    TE.checkTheoryAcyclessness th
                    putStrLn "The theory is checked."
 
-doCoqExtracting (ExtractorArguments libs thWFile thRFile terms) = do
+doCoqExtracting (ExtractorArguments libs exclChecks thWFile thRFile terms) = do
                                                           th' <- readTheoryFile [] thRFile
-                                                          checkTheory th'
+                                                          checkTheory exclChecks th'
 
                                                           th <- extractCoqLibraries libs th'
 
-                                                          checkTheory th
+                                                          checkTheory exclChecks th
                                                           writeTheoryFile th thWFile
                                                           
                                                           writeExtractedTerms terms th

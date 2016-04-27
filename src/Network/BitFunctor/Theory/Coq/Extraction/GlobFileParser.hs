@@ -85,7 +85,7 @@ globfileResource =  do
                      char Constants.globResourceChar
                      sbyte <- decimal
                      char Constants.globLineNumbersDelimiter
-                     ebyte <- decimal
+                     ebyte <- int
                      spaces
                      libname <- globfileIdent
                      spaces

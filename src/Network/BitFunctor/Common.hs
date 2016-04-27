@@ -25,23 +25,22 @@ lastWithDefault :: a -> [a] -> a
 lastWithDefault x [] = x
 lastWithDefault _ l = List.last l
 
-removeStartFromString :: String -> String -> String
-removeStartFromString "" s = s
-removeStartFromString p "" = ""
+removeStartFromString :: String -> String -> Maybe String
+removeStartFromString "" s = Just s
+removeStartFromString p "" = Just ""
 removeStartFromString pat@(p:pats) str@(s:strs) = if (isSpace p) then
                                                      removeStartFromString pats str
                                                   else if (isSpace s) then
                                                      removeStartFromString pat strs
                                                   else if (p == s) then
                                                      removeStartFromString pats strs
-                                                  else str
+                                                  else Nothing
 
-removeEndFromString :: String -> String -> String
-removeEndFromString pat str = List.reverse $ removeStartFromString (List.reverse pat) (List.reverse str)
+removeEndFromString :: String -> String -> Maybe String
+removeEndFromString pat str = removeStartFromString (List.reverse pat) (List.reverse str) >>= \s -> return $ List.reverse s 
 
-
-removeStartFromText t1 t2 = Text.pack $ removeStartFromString (Text.unpack t1) (Text.unpack t2)
-removeEndFromText t1 t2 = Text.reverse $ removeStartFromText (Text.reverse t1) (Text.reverse t2)
+removeStartFromText t1 t2 = removeStartFromString (Text.unpack t1) (Text.unpack t2) >>= \s -> return $ Text.pack s
+removeEndFromText t1 t2 = removeStartFromText (Text.reverse t1) (Text.reverse t2) >>= \s -> return $ Text.reverse s
 
 --------------part sorting utils
 

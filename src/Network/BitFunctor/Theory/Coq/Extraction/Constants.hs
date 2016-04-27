@@ -14,21 +14,22 @@ import Network.BitFunctor.Theory.Coq.Types
 globDigestString = "DIGEST"
 globLibChar = 'F'
 globResourceChar = 'R'
-coqIdentExtraChars = "._'\8322\8321"
-coqNotationExtraChars = ".<>[]'_,:=/\\+(){}!?*-|^~&@\8322\8321"
+coqIdentExtraChars = "._'\8322\8321\8729\8868\8869"
+coqNotationExtraChars = ".<>[]'_,:=/\\+(){}!?*-|^~&@\8322\8321\8729\8868\8869"
 globEmptySubEntryString = "<>"
 globLineNumbersDelimiter =  ':'
 coqModuleDelimiter = '.'
 coqStatementDelimiter =  '.'
 xtrFilePrefix = "SE"
 xtrPrintFilePrefix = "WP"
-xtrTypeFilePrefix = "WT"
+xtrImplicitFilePrefix = "WI"
+xtrCheckFilePrefix = "WC"
 vernacFileSuffix = ".v"
 vernacBinaryFileSuffix = ".vo"
 globFileSuffix = ".glob"
 coqExportString = "Require Export "
 coqImportString =  "Import "
-coqPrintTermString = "Set Printing All.\nUnset Printing Universes.\nSet Printing Depth 1000.\nPrint "
+coqPrintTermString = "Set Printing All.\nUnset Printing Universes.\nSet Printing Depth 1000.\n"
 coqExecutable = "coqc"
 coqPrintCommentsDelimiter :: Text.Text =  "\n\n"
 coqTypeDelimiter = Text.singleton ':'
@@ -53,11 +54,15 @@ coqExportLib l | Text.null l = Text.empty
 
 coqPrintTerm :: Text.Text -> Text.Text
 coqPrintTerm t | Text.null t = Text.empty
-               | otherwise =  coqPrintTermString <> t <> ".\n"
+               | otherwise =  coqPrintTermString <> "\nPrint " <> t <> ".\n"
 
-coqPrintType :: Text.Text -> Text.Text
-coqPrintType t | Text.null t = Text.empty
-               | otherwise = coqPrintTermString <> "Implicit " <> t <> ".\n"
+coqPrintImplicit :: Text.Text -> Text.Text
+coqPrintImplicit t | Text.null t = Text.empty
+                   | otherwise = coqPrintTermString <> "\nPrint Implicit " <> t <> ".\n"
+
+coqPrintCheck :: Text.Text -> Text.Text
+coqPrintCheck t | Text.null t = Text.empty
+                | otherwise = coqPrintTermString <> "\nCheck " <> t <> ".\n"
 
 coqImportMod :: Text.Text -> Text.Text
 coqImportMod m | Text.null m = Text.empty
@@ -66,8 +71,11 @@ coqImportMod m | Text.null m = Text.empty
 fullPrintTerm l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
    (coqExportLib l1) <> (coqExportLib l2') <> (coqImportMod m) <> (coqPrintTerm t)
 
-fullPrintType l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
-   (coqExportLib l1) <> (coqExportLib l2') <> (coqImportMod m) <> (coqPrintType t)
+fullPrintImplicit l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
+   (coqExportLib l1) <> (coqExportLib l2') <> (coqImportMod m) <> (coqPrintImplicit t)
+
+fullPrintCheck l1 l2 m t = let l2' = if l1 == l2 then "" else l2 in
+   (coqExportLib l1) <> (coqExportLib l2') <> (coqImportMod m) <> (coqPrintCheck t)
 
 -- different parser mappings
 

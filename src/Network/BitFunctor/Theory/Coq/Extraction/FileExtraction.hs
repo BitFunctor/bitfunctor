@@ -79,9 +79,10 @@ fromGlobFileRawEntry lib r = case (Constants.resourceKind $ GP.ekind r) of
                               let ln' = GP.elibname r in
                               let ln = if (Prelude.null ln') then lib else ln' in
                               let mn = GP.emodname r in                              
-                              let sn = GP.ename r in
-                              let csn = CoqStatementName (DT.pack ln) (DT.pack mn) (DT.pack sn) in 
-                              if (Prelude.null sn) then Nothing
+                              let sn = -- DT.takeWhileEnd (\c -> c /= Constants.coqModuleDelimiter) $
+                                       DT.pack $ GP.ename r in
+                              let csn = CoqStatementName (DT.pack ln) (DT.pack mn) sn in 
+                              if (DT.null sn) then Nothing
                                   else                                       
                                     Just (GP.epos r, CoqStatementA csn (GP.ekind r) (Left "") (Ident.id $ Ident.ByBinary lib) [((SelfReference, csn),[GP.epos r])])
                            StopStatement -> Nothing
@@ -147,9 +148,9 @@ collectStatements sts vfname libname = collectStatements0 sts vfname libname Not
 
 clearCoqGeneratedFiles :: [FilePath] -> IO ()
 clearCoqGeneratedFiles [] = return ()
-clearCoqGeneratedFiles (f:fs) = Utils.removeFiles [f++Constants.vernacFileSuffix,
-                                                   f++Constants.vernacBinaryFileSuffix,
-                                                   f++Constants.globFileSuffix] >> clearCoqGeneratedFiles fs
+clearCoqGeneratedFiles (f:fs) = return () -- Utils.removeFiles [f++Constants.vernacFileSuffix,
+                                --                   f++Constants.vernacBinaryFileSuffix,
+                                --                   f++Constants.globFileSuffix] >> clearCoqGeneratedFiles fs
 
 
 getPrintedStatement :: CoqTerm -> IO (Maybe (DT.Text, DT.Text))
@@ -160,27 +161,39 @@ getPrintedStatement (k, sts) =  do
                             let lname = sts^.libname
                             date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
                             let sename = Constants.xtrFilePrefix ++ (toString $ Ident.id $ Ident.ByBinary (show date, sts))
+
                             let fwPname' = Constants.xtrPrintFilePrefix ++ sename
-                            let fwCname' = Constants.xtrTypeFilePrefix ++ sename
+                            let fwIname' = Constants.xtrImplicitFilePrefix ++ sename
+                            let fwCname' = Constants.xtrCheckFilePrefix ++ sename
+
                             let fwPname = fwPname' ++ Constants.vernacFileSuffix
+                            let fwIname = fwIname' ++ Constants.vernacFileSuffix
                             let fwCname = fwCname' ++ Constants.vernacFileSuffix
+
                             putStrLn $ "Generating files for " ++ show k ++ " " ++ (DT.unpack fqstname)
+
                             TextIO.writeFile fwPname $ Constants.fullPrintTerm "" lname mname fqstname
-                            TextIO.writeFile fwCname $ Constants.fullPrintType "" lname mname fqstname
+                            TextIO.writeFile fwIname $ Constants.fullPrintImplicit "" lname mname fqstname
+                            TextIO.writeFile fwCname $ Constants.fullPrintCheck "" lname mname fqstname
+ 
                             (ecP, s1P', _) <- readProcessWithExitCode Constants.coqExecutable [fwPname] []
-                            (ecC, s1C', _) <- readProcessWithExitCode Constants.coqExecutable [fwCname] []
-                            case (ecP, ecC, Constants.isAbnormallyPrinted k) of
-                                (ExitFailure _ , _ , _) -> do
-                                                             putStrLn ("Error in coqc: " ++ fwPname)
-                                                             clearCoqGeneratedFiles [fwPname', fwCname'] 
+                            (ecI, s1I', _) <- readProcessWithExitCode Constants.coqExecutable [fwIname] []
+                           
+
+                            case (ecP, ecI, Constants.isAbnormallyPrinted k) of
+                                (ExitFailure _ , _, _) -> do
+                                                             putStrLn ("\x1b[31mError in coqc: \x1b[0m" ++ fwPname)
+                                                             clearCoqGeneratedFiles [fwPname', fwCname', fwIname'] 
                                                              return Nothing
                                 (ExitSuccess , ExitFailure _ , True) -> do
-                                                             putStrLn ("Error in coqc: " ++ fwCname)
-                                                             clearCoqGeneratedFiles [fwPname', fwCname'] 
+                                                             putStrLn ("\x1b[31mError in coqc: \x1b[0m" ++ fwIname)
+                                                             clearCoqGeneratedFiles [fwPname', fwCname', fwIname'] 
                                                              return Nothing
                                 _ -> do
                                         let s1P = DT.pack s1P'
-                                        let s1C = DT.pack s1C'
+                                        let s1I = DT.pack s1I'
+                                        
+
                                         let gfilename = sts^.libname
                                         let gmodname = sts^.modname
                                         -- Require Export "MainLib"                                                   
@@ -189,33 +202,60 @@ getPrintedStatement (k, sts) =  do
                                         let prebody = DT.strip $ Prelude.head $ DT.splitOn Constants.coqPrintCommentsDelimiter s1P
                                         -- get a short name and type as a list
                                         let firstword = Prelude.head $ DT.splitOn Constants.coqSpace prebody
-                                        let pretypename = DT.splitOn Constants.coqTypeDelimiter $ DT.strip
-                                                          $ Prelude.head $ DT.splitOn Constants.coqPrintCommentsDelimiter s1C
+
+                                        let pretypenameI = DT.splitOn Constants.coqTypeDelimiter $ DT.strip
+                                                          $ Prelude.head $ DT.splitOn Constants.coqPrintCommentsDelimiter s1I
+                                       
+
                                         -- retrieve short name
-                                        let shortname = Prelude.head pretypename
+                                        let shortname' = Prelude.head pretypenameI
                                         -- retrieve type name
-                                        let typename = DT.strip $ DT.intercalate Constants.coqTypeDelimiter
-                                                       $ Prelude.tail pretypename
+                                        let typenameI = DT.strip $ DT.intercalate Constants.coqTypeDelimiter $ Prelude.tail pretypenameI
+                                        
                                         -- strip the type from the prebody
-                                        let typeStrippedBody = DT.strip
-                                                               $ Common.removeEndFromText (Constants.coqTypeDelimiter <> typename)
-                                                               $ DT.intercalate Constants.coqPrintEqSign $ Prelude.tail
-                                                               $ DT.splitOn Constants.coqPrintEqSign prebody
+                                        let typeStrippedBodyI = Common.removeEndFromText (Constants.coqTypeDelimiter <> typenameI)
+                                                                $ DT.intercalate Constants.coqPrintEqSign $ Prelude.tail
+                                                                $ DT.splitOn Constants.coqPrintEqSign prebody 
+                                          
+                                        typeStrippedBodyM <- case typeStrippedBodyI of
+                                                                   Just bI -> return $ Just $ DT.strip bI
+                                                                   Nothing ->  do
+                                                                                (ecC, s1C', _) <- readProcessWithExitCode Constants.coqExecutable [fwCname] []
+                                                                                case ecC of
+                                                                                   ExitFailure _ -> do
+                                                                                                      putStrLn ("\x1b[31mError in coqc: \x1b[0m" ++ fwCname)
+                                                                                                      return Nothing
+                                                                                   ExitSuccess -> let s1C = DT.pack s1C' in
+                                                                                                  let pretypenameC = DT.splitOn Constants.coqTypeDelimiter $ DT.strip
+                                                                                                                      $ Prelude.head $ DT.splitOn Constants.coqPrintCommentsDelimiter s1C in
+                                                                                                  let typenameC = DT.strip $ DT.intercalate Constants.coqTypeDelimiter $ Prelude.tail pretypenameC in
+                                                                                                  let typeStrippedBodyC = Common.removeEndFromText (Constants.coqTypeDelimiter <> typenameC)
+                                                                                                                          $ DT.intercalate Constants.coqPrintEqSign $ Prelude.tail
+                                                                                                                          $ DT.splitOn Constants.coqPrintEqSign prebody  in
+                                                                                                   return typeStrippedBodyC 
                                         -- construct the body
                                         -- putStrLn $ "First word: " ++ firstword
                                         -- the hack with firstword is needed in particular for classes, extracted as inductives
                                         -- so when firstword==shortname it cannot be compiled, so must be processed alternatively
-                                        -- but otherwise could be used as it is
-                                        let body =  if k == Axiom || k == Variable then
-                                                       Constants.coqDefineTerm shortname typename ""
-                                                    else 
-                                                       if (Constants.isAbnormallyPrinted k) && (DT.strip firstword == DT.strip shortname) then 
-                                                          Constants.coqDefineTerm shortname typename typeStrippedBody
-                                                       else
-                                                          prebody <> (DT.singleton Constants.coqStatementDelimiter)
-                                        -- construct the file contents
-                                        clearCoqGeneratedFiles [fwPname', fwCname'] 
-                                        return $ Just (header, body)
+                                        -- but otherwise could be used as is
+                                        let shortname = DT.takeWhileEnd (\c -> c /= Constants.coqModuleDelimiter) shortname'
+                                        let mb =  if k == Axiom || k == Variable then
+                                                     Just $ Constants.coqDefineTerm shortname typenameI ""
+                                                  else
+                                                     if (DT.strip firstword /= DT.strip shortname) then
+                                                         Just $ prebody <> (DT.singleton Constants.coqStatementDelimiter)
+                                                     else Nothing
+                                        let mb' = case mb of
+                                                    Nothing -> typeStrippedBodyM >>= \typeStrippedBody -> return $ Constants.coqDefineTerm shortname typenameI typeStrippedBody
+                                                    Just _ -> mb
+                                        case mb' of                                                                                       
+                                          Nothing -> do
+                                                       putStrLn $ "\x1b[31mCannot generate term's code\x1b[0m"
+                                                       clearCoqGeneratedFiles [fwPname', fwCname', fwIname'] 
+                                                       return Nothing
+                                          Just body -> do
+                                                       clearCoqGeneratedFiles [fwPname', fwCname', fwIname'] 
+                                                       return $ Just (header, body)
 
 
 generateUnresolvedFile :: CoqTerm -> PreCoqTheory a -> PreCoqTheory b -> [(CoqStatementName, FilePath)] -> IO (Maybe (CoqStatementName, FilePath))
@@ -229,7 +269,7 @@ generateUnresolvedFile ct@(k, sts) thm thm' filem =
                                         mhb <- getPrintedStatement ct
                                         case mhb of
                                           Nothing -> do
-                                                      putStrLn "Cannot generate term body"
+                                                      putStrLn "\x1b[31mCannot generate term body\x1b[0m"
                                                       return Nothing
                                           Just (header, body) -> do
                                                   let mname = sts^.modname
@@ -381,14 +421,14 @@ extractStatements0 (fn:fs) accf acct th accs = do
                                (ec, s1, _) <- readProcessWithExitCode Constants.coqExecutable [vFile] []
                                case ec of
                                  ExitFailure _ -> do
-                                                   putStrLn ("Error in coqc: " ++ vFile)
+                                                   putStrLn ("\x1b[31mError in coqc: \x1b[0m" ++ vFile)
                                                    extractStatements0 fs (fn:accf) acct th accs
                                  ExitSuccess ->	 do
                                                    -- putStrLn ("coqc output:\n" ++ s1)
                                                    globfile  <- readFile gFile                                                  
                                                    case (PS.parse GP.globfileData "" globfile) of
                                                        Left err -> do
-                                                                     putStrLn "Parse error: " >> print gFile >> print err
+                                                                     putStrLn "\x1b[31mParse error: \x1b[0m" >> print gFile >> print err
                                                                      extractStatements0 fs (fn:accf) acct th accs
                                                        Right (dig, lib, ent)  -> do
                                                                    sts' <- collectStatements ent vFile lib
@@ -416,13 +456,13 @@ extractSymbols fn = do
                      (ec, s1, _) <- readProcessWithExitCode Constants.coqExecutable [vFile] []
                      case ec of
                         ExitFailure _ -> do
-                                          putStrLn ("Error in coqc: " ++ vFile)
+                                          putStrLn ("\x1b[31mError in coqc: \x1b[0m" ++ vFile)
                                           return []
                         ExitSuccess ->	 do                                           
                                            globfile <- readFile gFile                                                  
                                            case (PS.parse GP.globfileData "" globfile) of
                                                Left err -> do
-                                                            putStrLn "Parse error: " >> print gFile >> print err
+                                                            putStrLn "\x1b[31mParse error: \x1b[0m" >> print gFile >> print err
                                                             return []
                                                Right (dig, lib, ent)  -> do
                                                             sts' <- collectStatements ent vFile lib
