@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Network.BitFunctor.Transaction.Types ( Transaction (..)
                                             , TxInput (..)
@@ -12,7 +11,6 @@ module Network.BitFunctor.Transaction.Types ( Transaction (..)
                                             ) where
 
 import Data.Time.Clock (UTCTime)
-import Data.Time.Clock.POSIX (POSIXTime, utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import GHC.Generics
 
 import Network.BitFunctor.Account
@@ -21,6 +19,7 @@ import Network.BitFunctor.Crypto.Types
 import Network.BitFunctor.Crypto.Hash (hash, Hash, Id)
 import Network.BitFunctor.Identifiable
 import qualified Network.BitFunctor.Theory.Types as Theory
+import Network.BitFunctor.Common (UTCTimeAsPOSIXSeconds (..))
 
 import Data.Binary as Binary (Binary(..), encode)
 
@@ -154,19 +153,3 @@ instance Binary TxOutput where
         return $ TxOutput r
       _ -> fail "binary: can't parse txoutput (wrong tag)"
 
-
-
-newtype UTCTimeAsPOSIXSeconds = UTCTimeAsPOSIXSeconds UTCTime
-
-instance Binary UTCTimeAsPOSIXSeconds where
-  put (UTCTimeAsPOSIXSeconds utc) = do
-    put $ utcTimeToPOSIXSeconds utc
-  get = do
-    seconds <- get
-    return . UTCTimeAsPOSIXSeconds $ posixSecondsToUTCTime seconds
-
-instance Binary POSIXTime where
-  put = put . toRational
-  get = do
-    t <- get
-    return $ fromRational t

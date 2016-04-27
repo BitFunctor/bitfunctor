@@ -14,7 +14,7 @@ module Network.BitFunctor.Transaction ( Transaction (..)
 import qualified Crypto.PubKey.Ed25519 as C (sign, verify)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import Data.Binary
+import Data.Binary (encode)
 
 import Network.BitFunctor.Transaction.Types
 import Network.BitFunctor.Account
@@ -51,4 +51,5 @@ validateHeader tx = worthwhile && signatureValid
                         signatureValid = verify tx
 
 signEncode :: Transaction -> B.ByteString
-signEncode tx = BL.toStrict $ encode (TransactionSigning tx)
+signEncode = BL.toStrict . encode . TransactionSigning
+

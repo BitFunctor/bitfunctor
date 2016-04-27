@@ -1,7 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.BitFunctor.Block.Types where
+module Network.BitFunctor.Block.Types ( Block (..)
+                                      , BlockHash
+                                      , BlockSigning (..)
+                                      ) where
 
 import Network.BitFunctor.Transaction.Types (Transaction)
 import Network.BitFunctor.Identifiable
@@ -15,9 +18,16 @@ import Data.Time.Clock (UTCTime)
 import Network.BitFunctor.Crypto.Types
 import Data.ByteArray (convert)
 import Network.BitFunctor.Crypto.Hash (hash, Hash, Id)
+import Network.BitFunctor.Common (UTCTimeAsPOSIXSeconds (..))
 
 import Data.Binary as Bin (Binary(..), encode)
 import Data.ByteString.Lazy (toStrict)
+import Data.Word (Word8)
+
+
+
+newtype BlockHash = Hash (Hash Id)
+                    deriving (Show, Eq, Ord)
 
 
 data Block = Block { previous     :: Hash Id
@@ -28,13 +38,47 @@ data Block = Block { previous     :: Hash Id
                    , signature    :: Signature
                    } deriving (Show, Eq, Generic)
 
+
 instance Binary Block where
-  put = undefined
-  get = undefined
+  put block = do
+    put (0 :: Word8)
+    putBlockOptSig True block
+  get = do
+    tag <- get
+    case tag :: Word8 of
+      0 -> do
+        p <- get
+        utcFromPOSIXT <- get
+        txs <- get
+        tgt <- get
+        g <- get
+        s <- get
+        let (UTCTimeAsPOSIXSeconds t) = utcFromPOSIXT
+        return $ Block p t txs tgt g s
+      _ -> fail "binary: can't parse block (wrong tag)"
 
 
 instance Identifiable Block where
   id = hash . toStrict . Bin.encode
+
+
+newtype BlockSigning = BlockSigning Block
+
+instance Binary BlockSigning where
+  put (BlockSigning block) = putBlockOptSig False block
+  get = fail "No binary parsing for BlockSigning"
+
+
+putBlockOptSig withSig block = do
+  put $ previous block
+  put $ UTCTimeAsPOSIXSeconds $ timestamp block
+  put $ transactions block
+  put $ baseTarget block
+  put $ generator block
+  case withSig of
+    True  -> put $ signature block
+    False -> return ()
+
 
 -- instance FromJSON Block
 
@@ -46,5 +90,3 @@ instance ToJSON Block where
                               , "signature"    .= signature b
                               ]
 
-newtype BlockHash = Hash (Hash Id)
-                    deriving (Show, Eq, Ord)

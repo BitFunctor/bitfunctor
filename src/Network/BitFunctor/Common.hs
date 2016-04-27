@@ -1,9 +1,16 @@
-module Network.BitFunctor.Common  where
+{-# LANGUAGE TypeSynonymInstances #-}
+
+module Network.BitFunctor.Common where
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Data.Char (isSpace)
+
+import Data.Binary (Binary (..))
+import Data.Time.Clock (UTCTime)
+import Data.Time.Clock.POSIX (POSIXTime, utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
+
 
 
 spanEnd :: (a -> Bool) -> [a] -> ([a], [a])
@@ -73,4 +80,21 @@ partsort id ord l = let l' = List.map (\x -> (id x, (x, List.foldl (\(r,m) y -> 
                                                                                   PLT -> (r, y:m)
                                                                                   _ -> (r,m) ) (0,[]) l))) l in                    
                     partsort' id l' [] 
-                    
+
+
+
+newtype UTCTimeAsPOSIXSeconds = UTCTimeAsPOSIXSeconds UTCTime
+
+instance Binary UTCTimeAsPOSIXSeconds where
+  put (UTCTimeAsPOSIXSeconds utc) = do
+    put $ utcTimeToPOSIXSeconds utc
+  get = do
+    seconds <- get
+    return . UTCTimeAsPOSIXSeconds $ posixSecondsToUTCTime seconds
+
+instance Binary POSIXTime where
+  put = put . toRational
+  get = do
+    t <- get
+    return $ fromRational t
+
