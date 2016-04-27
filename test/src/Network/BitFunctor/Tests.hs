@@ -2,6 +2,7 @@ module Network.BitFunctor.Tests where
 
 import Network.BitFunctor.Account (AccountId)
 import Network.BitFunctor.Block (Block)
+import Network.BitFunctor.Block.Arbitrary ()
 import Network.BitFunctor.Crypto.Hash (Hash, Id)
 import Network.BitFunctor.Crypto.Types (PublicKey, Signature)
 import Network.BitFunctor.Transaction (Transaction)
@@ -35,7 +36,3 @@ prop_binary_encdec_inv obj = (decode . encode) obj == obj
 
 prop_binary_eq_over_enc :: (Binary a, Eq a) => a -> a -> Bool
 prop_binary_eq_over_enc o1 o2 = (o1 == o2) <= (encode o1 == encode o2)
-
-
-instance Arbitrary Block where
-  arbitrary = undefined
