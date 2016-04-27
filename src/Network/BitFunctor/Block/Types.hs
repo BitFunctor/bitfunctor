@@ -15,9 +15,11 @@ import Data.Time.Clock (UTCTime)
 import Network.BitFunctor.Crypto.Types
 import Data.ByteArray (convert)
 import Network.BitFunctor.Crypto.Hash (hash, Hash, Id)
+import Network.BitFunctor.Common (UTCTimeAsPOSIXSeconds (..))
 
 import Data.Binary as Bin (Binary(..), encode)
 import Data.ByteString.Lazy (toStrict)
+import Data.Word (Word8)
 
 
 data Block = Block { previous     :: Hash Id
