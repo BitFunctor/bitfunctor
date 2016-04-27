@@ -1,7 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.BitFunctor.Block.Types where
+module Network.BitFunctor.Block.Types ( Block (..)
+                                      , BlockHash
+                                      , BlockSigning (..)
+                                      ) where
 
 import Network.BitFunctor.Transaction.Types (Transaction)
 import Network.BitFunctor.Identifiable
@@ -22,6 +25,11 @@ import Data.ByteString.Lazy (toStrict)
 import Data.Word (Word8)
 
 
+
+newtype BlockHash = Hash (Hash Id)
+                    deriving (Show, Eq, Ord)
+
+
 data Block = Block { previous     :: Hash Id
                    , timestamp    :: UTCTime
                    , transactions :: [Hash Id]
@@ -30,15 +38,11 @@ data Block = Block { previous     :: Hash Id
                    , signature    :: Signature
                    } deriving (Show, Eq, Generic)
 
+
 instance Binary Block where
   put block = do
     put (0 :: Word8)
-    put $ previous block
-    put $ UTCTimeAsPOSIXSeconds $ timestamp block
-    put $ transactions block
-    put $ baseTarget block
-    put $ generator block
-    put $ signature block
+    putBlockOptSig True block
   get = do
     tag <- get
     case tag :: Word8 of
@@ -57,6 +61,25 @@ instance Binary Block where
 instance Identifiable Block where
   id = hash . toStrict . Bin.encode
 
+
+newtype BlockSigning = BlockSigning Block
+
+instance Binary BlockSigning where
+  put (BlockSigning block) = putBlockOptSig False block
+  get = fail "No binary parsing for BlockSigning"
+
+
+putBlockOptSig withSig block = do
+  put $ previous block
+  put $ UTCTimeAsPOSIXSeconds $ timestamp block
+  put $ transactions block
+  put $ baseTarget block
+  put $ generator block
+  case withSig of
+    True  -> put $ signature block
+    False -> return ()
+
+
 -- instance FromJSON Block
 
 instance ToJSON Block where
@@ -67,5 +90,3 @@ instance ToJSON Block where
                               , "signature"    .= signature b
                               ]
 
-newtype BlockHash = Hash (Hash Id)
-                    deriving (Show, Eq, Ord)
