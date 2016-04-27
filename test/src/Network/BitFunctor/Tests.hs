@@ -27,10 +27,14 @@ tests = testGroup "Network.BitFunctor.Tests"
   , testProperty "binary_decode(binary_encode(hash_id)) == hash_id" (prop_binary_encdec_inv :: Hash Id -> Bool)
   , testProperty "binary_decode(binary_encode(tx)) == tx" (prop_binary_encdec_inv :: Transaction -> Bool)
   , testProperty "binary_decode(binary_encode(block)) == block" (prop_binary_encdec_inv :: Block -> Bool)
+  , testProperty "h1 == h2 => binary_encode(h1) == binary_encode(h2)" (prop_binary_eq_over_enc :: Hash Id -> Hash Id -> Bool)
   ]
 
 prop_binary_encdec_inv :: (Binary a, Eq a) => a -> Bool
 prop_binary_encdec_inv obj = (decode . encode) obj == obj
+
+prop_binary_eq_over_enc :: (Binary a, Eq a) => a -> a -> Bool
+prop_binary_eq_over_enc o1 o2 = (o1 == o2) <= (encode o1 == encode o2)
 
 
 instance Arbitrary Block where
