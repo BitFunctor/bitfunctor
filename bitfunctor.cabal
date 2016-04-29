@@ -68,6 +68,8 @@ test-suite tests
   other-modules:         Network.BitFunctor.Account.Arbitrary
                        , Network.BitFunctor.Account.Tests
                        , Network.BitFunctor.Crypto.Arbitrary
+                       , Network.BitFunctor.Block.Arbitrary
+                       , Network.BitFunctor.Block.Tests
                        , Network.BitFunctor.Transaction.Arbitrary
                        , Network.BitFunctor.Transaction.Tests
                        , Network.BitFunctor.Tests
