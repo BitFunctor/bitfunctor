@@ -28,8 +28,7 @@ import Data.Word (Word8)
 
 
 
-newtype TransactionHash = Hash (Hash Id)
-                          deriving (Show, Eq, Ord)
+type TransactionHash = Hash Id
 
 
 data TxInput = TxInput { sender    :: AccountId

@@ -26,8 +26,7 @@ import Data.Word (Word8)
 
 
 
-newtype BlockHash = Hash (Hash Id)
-                    deriving (Show, Eq, Ord)
+type BlockHash = Hash Id
 
 
 data Block = Block { previous     :: Hash Id

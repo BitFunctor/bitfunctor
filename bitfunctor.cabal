@@ -21,7 +21,6 @@ library
   exposed-modules:     Network.BitFunctor.Account,
                        Network.BitFunctor.Block,
                        Network.BitFunctor.Block.Types,
-                       Network.BitFunctor.Common,
                        Network.BitFunctor.Crypto.Hash,
                        Network.BitFunctor.Crypto.Hash.Types,
                        Network.BitFunctor.Crypto.Types,
@@ -39,6 +38,7 @@ library
                        Network.BitFunctor.Token,
                        Network.BitFunctor.Transaction,
                        Network.BitFunctor.Transaction.Types
+  other-modules:       Network.BitFunctor.Common
   build-depends:       base,
                        bytestring,
                        base16-bytestring,
@@ -68,6 +68,8 @@ test-suite tests
   other-modules:         Network.BitFunctor.Account.Arbitrary
                        , Network.BitFunctor.Account.Tests
                        , Network.BitFunctor.Crypto.Arbitrary
+                       , Network.BitFunctor.Block.Arbitrary
+                       , Network.BitFunctor.Block.Tests
                        , Network.BitFunctor.Transaction.Arbitrary
                        , Network.BitFunctor.Transaction.Tests
                        , Network.BitFunctor.Tests
