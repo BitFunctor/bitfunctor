@@ -38,24 +38,32 @@ class (Codeable a) where
 
 class (Ord k, Eq k) => Keyable a k | a -> k where
     toKey :: a -> k
-
+    fromKey :: k -> a -> a
 
 -- can be statement name
 class (Keyable a k) => Nameable a k where
     toPrefix :: Char -> a -> Text
     toSuffix :: a -> Text
     fromSuffix :: Text -> a
+    changePrefix :: Text -> a -> a 
     toFQName :: Char -> a -> Text
     toFQName c x = let p = toPrefix c x in
                    let s = toSuffix x in 
                    if Data.Text.null p then s                                    
                                        else if Data.Text.null s then p
                                             else p <> (singleton c) <> s
+    toFQNameWithPrefixMap :: Char -> Map.Map Text Text -> a -> Text
+    toFQNameWithPrefixMap c m x = let p' = toPrefix c x in
+                     let p = Map.findWithDefault p' p' m in
+                     let s = toSuffix x in 
+                     if Data.Text.null p then s                                    
+                                       else if Data.Text.null s then p
+                                            else p <> (singleton c) <> s
     changeNameWith:: (k -> k -> Bool) -> k -> k -> a -> a
     changeNameWith f kf kt x = if (f kf $ toKey x) then fromKey kt x else x
     changeNameWithKey :: k -> k -> a -> a
     changeNameWithKey = changeNameWith (==)
-    fromKey :: k -> a -> a
+    
  
 type CodeA a b = Either a [Either a b]
 
@@ -69,6 +77,12 @@ toTextWithMap f (Right mab) = List.foldl (\acc c -> acc <> (case c of
 fromCodeA :: (Codeable b, Nameable b k, Codeable a) => Char -> CodeA a b -> Text
 fromCodeA c = toTextWithMap $ \ct -> if (isFQExtractable ct) then toFQName c ct
                                                              else toText ct
+
+
+fromCodeWithPrefixMapA :: (Codeable b, Nameable b k, Codeable a) => Char -> Map.Map Text Text -> CodeA a b -> Text
+fromCodeWithPrefixMapA c mtt = toTextWithMap $ \ct -> if (isFQExtractable ct) then toFQNameWithPrefixMap c mtt ct
+                                                             else toText ct
+
 
 instance (Codeable a, Codeable b) => Codeable (Either a b) where
     fromText t = Left (fromText t)
@@ -93,6 +107,7 @@ class (Serz.Serialize s, Eq s, Nameable a k, Codeable c, Codeable c', Nameable c
     toStatementName :: s -> a
     toStatementCode :: s -> CodeA c c'
     changeStatementCode :: CodeA c c' -> s -> s
+    changeStatementName :: a -> s -> s
     toStatementKey ::  s -> k
     toStatementKey = toKey . toStatementName
  

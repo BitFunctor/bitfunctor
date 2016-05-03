@@ -46,6 +46,7 @@ type CoqCode = CodeA Text CoqTerm
 
 instance Keyable CoqStatementName CoqStatementName where
    toKey = id
+   fromKey k _ = k
 
 instance Nameable CoqStatementName CoqStatementName where
    toPrefix c csn = let l = csn^.libname in
@@ -55,7 +56,7 @@ instance Nameable CoqStatementName CoqStatementName where
                                           else l <> (Text.singleton c) <> m
    toSuffix = _sname
    fromSuffix t = CoqStatementName "" "" t
-   fromKey k _ = k
+   changePrefix p (CoqStatementName _ _ s) = CoqStatementName p "" s
 
 instance Codeable Text where
    toText = id
@@ -65,13 +66,14 @@ instance Codeable Text where
    isSelfReference _ = False
 
 instance Keyable CoqTerm CoqStatementName where
-   toKey = snd 
+   toKey = snd
+   fromKey k x = (fst x, fromKey k (snd x))  
 
 instance Nameable CoqTerm CoqStatementName where
    toPrefix c = toPrefix c . snd
    toSuffix = toSuffix . snd
    fromSuffix t = (Unknown, fromSuffix t)
-   fromKey k x = (fst x, fromKey k (snd x)) 
+   changePrefix p x = (fst x, changePrefix p $ snd x)
 
 instance Codeable CoqTerm where
    -- check whether it is correct
@@ -107,6 +109,7 @@ instance (Eq a, DS.Serialize a) => StatementC CoqStatementName CoqStatementName 
     toStatementCode = _stcode
     changeStatementCode c s = stcode .~ c $ s
     toStatementKey = _stname
+    changeStatementName n s = stname .~ n $ s
 
 
 type PreCoqTheory a = Map.Map CoqStatementName (CoqStatementA a) 

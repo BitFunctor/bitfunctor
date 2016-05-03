@@ -36,11 +36,12 @@ data TxInput = TxInput { sender    :: AccountId
                        , inputType :: TxInputType
                        } deriving (Show, Eq, Generic)
 
-data TxInputType = Value        { amount      :: BTF }
-                 | Option       { option      :: CBTF }
-                 | OptionCreate { payload     :: TheoryPayload }
-                 | OptionBurn   { claimOption :: CBTF
-                                , claimAmount :: BTF
+-- TODO : add announcement of code and services  
+data TxInputType = Value        { amount      :: BTF } -- transfer BTF
+                 | Option       { option      :: CBTF } -- transfer CBTF
+                 | OptionCreate { payload     :: TheoryPayload } -- send a code  -> create option
+                 | OptionBurn   { claimOption :: CBTF -- exchange option for BTF
+                                , claimAmount :: BTF -- the exact value (this or nothing) sender wants back
                                 }
                  deriving (Show, Eq, Generic)
 

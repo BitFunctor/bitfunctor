@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- {-# LANGUAGE ScopedTypeVariables, TypeOperators, GADTs, FlexibleInstances #-}
 
 module Network.BitFunctor.Theory.Extraction where
@@ -11,6 +12,7 @@ import qualified Data.Text as Text
 import Data.Monoid ((<>))
 import Data.Maybe (catMaybes)
 import Control.Monad
+import Control.Lens
 
 import Network.BitFunctor.Theory.Types
 import qualified Network.BitFunctor.Common as Common
@@ -139,14 +141,21 @@ extractTerms th (tt:tts) = do
                               r <- extractTerms th tts 
                               return $ et:r
 
+shortenLibNames :: StatementC a k c c' s => [s] -> ([s], [(Text.Text, Text.Text)])
+shortenLibNames sts = let preforig = List.nub $ mapped %~ (toPrefix '_' . toStatementName) $ sts in
+                      let prefsh = Utils.shortenText preforig in
+                      let chmap = zip preforig prefsh in
+                      (sts, chmap) 
+
+
 extractTermsCode :: TheoryC a k c c' s t => [Text.Text] -> t -> IO [[Text.Text]]
 extractTermsCode ts th = do
-                          extss <- extractTerms th ts
-                          putStrLn $ "Length of extracted terms: " ++ (show $ List.map (List.map (\ext -> List.length ext)) extss)
-                          return $ List.map (List.map (\ext -> Text.concat $
-                                                                   List.map (\s -> (fromCodeA '_' $ toStatementCode s) <>
-                                                                   "\n(* end " <>
-                                                                   (toFQName '.' $ toStatementName s) <> " *)\n\n") ext)) extss
+                          extss' <- extractTerms th ts
+                          putStrLn $ "Length of extracted terms: " ++ (show $ mapped.mapped %~ List.length $ extss')
+                          let chlibmap = mapped.mapped %~ shortenLibNames $ extss'                         
+                          return $ mapped.mapped %~ (\(exts, chmap) -> Text.concat $
+                                                  List.map (\s -> (fromCodeWithPrefixMapA '_' (Map.fromList chmap) $ toStatementCode s) <>
+                                                            "\n(* end " <> (toFQName '.' $ toStatementName s) <> " *)\n\n") exts) $ chlibmap
 
 -----------------------------------------------------------------------------------------
 

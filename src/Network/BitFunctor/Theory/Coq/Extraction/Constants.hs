@@ -15,7 +15,7 @@ globDigestString = "DIGEST"
 globLibChar = 'F'
 globResourceChar = 'R'
 coqIdentExtraChars = "._'\8322\8321\8729\8868\8869"
-coqNotationExtraChars = ".<>[]'_,:=/\\+(){}!?*-|^~&@\8322\8321\8729\8868\8869"
+coqNotationExtraChars = "#.<>[]'_,:=/\\+(){}!?*-|^~&@\8322\8321\8729\8868\8869"
 globEmptySubEntryString = "<>"
 globLineNumbersDelimiter =  ':'
 coqModuleDelimiter = '.'
@@ -94,7 +94,7 @@ globKindStrings = [("defax", (Axiom, Resource)),
                    ("inst", (Instance, Resource)),
                    ("syndef", (SynDef, Resource)),
                    ("class", (Class, Resource)),
-                   ("rec", (Record, Resource)),
+                   ("rec", (Inductive, Resource)),
                    ("proj", (Projection, Resource)),
                    ("meth", (Method, Resource)),
                    ("thm", (Theorem, Resource)),

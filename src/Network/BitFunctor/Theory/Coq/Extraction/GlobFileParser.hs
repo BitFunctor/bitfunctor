@@ -36,6 +36,11 @@ data GlobFileRawEntry = GlobFileRawEntry {epos:: GlobFilePosition,
 -- the entry could be either statement or resource to some statement
 data GlobFileEntry = GlobFileResource GlobFileRawEntry | GlobFileStatement GlobFileRawEntry
                      deriving (Eq, Show)
+
+entryProjection :: GlobFileEntry -> GlobFileRawEntry
+entryProjection (GlobFileResource re) = re
+entryProjection (GlobFileStatement re) = re
+
 -- data for parser
 type GlobFileData = (GlobFileDigest, GlobFileName, [GlobFileEntry])
 

@@ -31,7 +31,7 @@ data ExtractorArguments = ExtractorArguments [FilePath] [Text.Text] FilePath Fil
 xtractorArgsParser :: ParserSpec ExtractorArguments
 xtractorArgsParser = ExtractorArguments
   `parsedBy` optFlagArgs [] "f" [] (\b a -> b ++ [a])  `Descr` "vernac files to process"
-  `andBy` optFlagArgs [] "skip-checks" [] (\b a -> b ++ [Text.pack a]) `Descr` "skip particular check, or empty for all"
+  `andBy` optFlagArgs [""] "skip-checks" [] (\b a -> b ++ [Text.pack a]) `Descr` "skip particular check, or empty for all"
   `andBy` optFlag "" "wt" `Descr` "write to theory file"
   `andBy` optFlag "" "rt" `Descr` "read from theory file"   
   `andBy` optFlagArgs [] "e" [] (\b a -> b ++ [Text.pack a])  `Descr` "statements to extract"  
