@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
--- {-# LANGUAGE ScopedTypeVariables, TypeOperators, GADTs, FlexibleInstances #-}
+
 
 module Network.BitFunctor.Theory.Extraction where
 
@@ -105,17 +105,17 @@ getUsedStatements th st = let stc = toStatementCode st in
                                                                                     else Nothing) cl in
                                         List.nub usm
 
-unfoldUses :: TheoryC a k c c' s t => [s] -> [s] -> t -> IO [s]
-unfoldUses [] acct _ = return acct
-unfoldUses (st:sts) acct th = do
-                         putStrLn $ "Unfolding " ++ (Text.unpack $ toSuffix $ toStatementName st) ++ ", remaining " ++ (show $ List.length sts)
-                         let thm = toStatementMap th
-                         let b = List.notElem st acct 
+unfoldUses :: TheoryC a k c c' s t => [s] -> [s] -> t -> [s]
+unfoldUses [] acct _ = acct
+unfoldUses (st:sts) acct th = -- do
+                         -- putStrLn $ "Unfolding " ++ (Text.unpack $ toSuffix $ toStatementName st) ++ ", remaining " ++ (show $ List.length sts)
+                         let thm = toStatementMap th in
+                         let b = List.notElem st acct in
                          -- let isExtractable u = (fst u /= SelfReference) && (fst u /= BoundVariable) && (fst u /= LocalConstructor)
-                         let stc = toStatementCode st
+                         let stc = toStatementCode st in
                          case stc of
-                           Left _ -> do
-                                      putStrLn "Statement code is not parsed, skipping..."
+                           Left _ -> -- do
+                                     -- putStrLn "Statement code is not parsed, skipping..."
                                       unfoldUses sts acct th
                            Right cl -> let usm = catMaybes $ List.map (\u -> case u of
                                                                          Left _ -> Nothing
@@ -124,22 +124,21 @@ unfoldUses (st:sts) acct th = do
                                                                                     else Nothing) cl in
                                        if b then                             
                                          unfoldUses (usm ++ sts) (st:acct) th
-                                       else do
-                                            putStrLn "skipping..."
+                                       else -- do
+                                            -- putStrLn "skipping..."
                                             unfoldUses sts acct th
 
-unfoldUsesList :: TheoryC a k c c' s t => [s] -> t -> IO [[s]]
-unfoldUsesList sts th = mapM (\s -> unfoldUses [s] [] th) sts 
+unfoldUsesList :: TheoryC a k c c' s t => [s] -> t -> [[s]]
+unfoldUsesList sts th = List.map (\s -> unfoldUses [s] [] th) sts 
 
-extractTerms :: TheoryC a k c c' s t => t -> [Text.Text] -> IO [[[s]]]
-extractTerms _ []  = return []
-extractTerms th (tt:tts) = do
-                              et <- do
-                                  let fsts = List.filter (\s -> ((toSuffix $ toStatementName s) == tt)) $ toStatementList th
-                                  r <- unfoldUsesList fsts th 
-                                  return $ List.map (Common.partsort toStatementName partCompare) r                                  
-                              r <- extractTerms th tts 
-                              return $ et:r
+extractTerms :: TheoryC a k c c' s t => t -> [Text.Text] -> [[[s]]]
+extractTerms _ []  = []
+extractTerms th (tt:tts) = let et =
+                                  let fsts = List.filter (\s -> ((toSuffix $ toStatementName s) == tt)) $ toStatementList th in
+                                  let r = unfoldUsesList fsts th in
+                                  List.map (Common.partsort toStatementName partCompare) r  in
+                            let r = extractTerms th tts in
+                            (et:r)
 
 shortenLibNames :: StatementC a k c c' s => [s] -> ([s], [(Text.Text, Text.Text)])
 shortenLibNames sts = let preforig = List.nub $ mapped %~ (toPrefix '_' . toStatementName) $ sts in
@@ -148,12 +147,11 @@ shortenLibNames sts = let preforig = List.nub $ mapped %~ (toPrefix '_' . toStat
                       (sts, chmap) 
 
 
-extractTermsCode :: TheoryC a k c c' s t => [Text.Text] -> t -> IO [[Text.Text]]
-extractTermsCode ts th = do
-                          extss' <- extractTerms th ts
-                          putStrLn $ "Length of extracted terms: " ++ (show $ mapped.mapped %~ List.length $ extss')
-                          let chlibmap = mapped.mapped %~ shortenLibNames $ extss'                         
-                          return $ mapped.mapped %~ (\(exts, chmap) -> Text.concat $
+extractTermsCode :: TheoryC a k c c' s t => [Text.Text] -> t -> [[Text.Text]]
+extractTermsCode ts th =  let extss' = extractTerms th ts in
+                          -- putStrLn $ "Length of extracted terms: " ++ (show $ mapped.mapped %~ List.length $ extss')
+                          let chlibmap = mapped.mapped %~ shortenLibNames $ extss' in
+                          mapped.mapped %~ (\(exts, chmap) -> Text.concat $
                                                   List.map (\s -> (fromCodeWithPrefixMapA '_' (Map.fromList chmap) $ toStatementCode s) <>
                                                             "\n(* end " <> (toFQName '.' $ toStatementName s) <> " *)\n\n") exts) $ chlibmap
 

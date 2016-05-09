@@ -517,7 +517,7 @@ extractStatements0 (fn:fs) accf acct th accs = do
                                  ExitFailure _ -> do
                                                    putStrLn ("\x1b[31mError in coqc: \x1b[0m" ++ vFile)
                                                    extractStatements0 fs (fn:accf) acct th accs
-                                 ExitSuccess ->	 do
+                                 ExitSuccess ->  do
                                                    -- putStrLn ("coqc output:\n" ++ s1)
                                                    globfile  <- readFile gFile                                                  
                                                    case (PS.parse GP.globfileData "" globfile) of
@@ -554,7 +554,7 @@ extractSymbols fn = do
                         ExitFailure _ -> do
                                           putStrLn ("\x1b[31mError in coqc: \x1b[0m" ++ vFile)
                                           return []
-                        ExitSuccess ->	 do                                           
+                        ExitSuccess ->   do
                                            globfile <- readFile gFile                                                  
                                            case (PS.parse GP.globfileData "" globfile) of
                                                Left err -> do

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeSynonymInstances, BangPatterns #-}
 
 module Network.BitFunctor.Common where
 
@@ -53,7 +53,7 @@ removeEndFromText t1 t2 = removeStartFromText (Text.reverse t1) (Text.reverse t2
 
 -- foldl :: (a -> b -> a) -> a -> [b] -> a
 
-data PartOrdering = PLT | PEQ | PGT | PNC	
+data PartOrdering = PLT | PEQ | PGT | PNC
 
 
 changehead0 :: (a -> Bool) -> [a] -> [a] -> [a]
@@ -65,11 +65,11 @@ changehead :: (a -> Bool) -> [a] -> [a]
 changehead f l = changehead0 f [] l
 
 partsort' :: Ord b => (a -> b) -> [(b, (a, (Integer, [a])))] -> [a] -> [a] 
-partsort' id l accl = let ls = List.sortBy (\(_, (_, (r1, _))) (_, (_, (r2, _))) -> compare r1 r2) l in
+partsort' id l accl = let !ls = List.sortBy (\(_, (_, (r1, _))) (_, (_, (r2, _))) -> compare r1 r2) l in
                       case ls of
                         [] -> Prelude.reverse accl
                         (x:xs) -> partsort' id xs' ((fst $ snd x):accl) where
-                               xs' = let m = Map.fromList xs in
+                               !xs' = let m = Map.fromList xs in
                                      let majl = snd $ snd $ snd x in
                                      Map.toList $ List.foldl (\m' y -> Map.adjust (\(x, (rx, mx)) -> (x, (rx-1, mx))) (id y) m') m majl    
 

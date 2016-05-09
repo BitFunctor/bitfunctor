@@ -37,7 +37,7 @@ coqDefinitionString = "Definition "
 coqAxiomString = "Axiom " 
 coqPrintEqSign = Text.singleton  '='
 coqDefSign =  ":="
-generatedFilePrefix = "Bitfunctor"
+generatedFilePrefix = "Btf"
 nullLibString = ("" :: String )
 coqSpace :: Text.Text  = " "
 

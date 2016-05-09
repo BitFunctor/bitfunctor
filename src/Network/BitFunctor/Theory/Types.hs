@@ -12,9 +12,9 @@ import Data.Char
 import Data.Foldable
 import Data.Monoid
 import Control.Monad
-import qualified Data.Map as Map
+import Data.Binary
+import qualified Data.Map.Strict as Map
 import qualified Data.List as List
-import qualified Data.Serialize as Serz
 import qualified Data.Text.Encoding as TE
 
 import Network.BitFunctor.Common
@@ -22,11 +22,6 @@ import Network.BitFunctor.Common
 -- remove from here
 class (PartOrd a) where
     partCompare :: a -> a -> PartOrdering
-
-instance Serz.Serialize Text where
-  put txt = Serz.put $ TE.encodeUtf8 txt
-  get     = fmap TE.decodeUtf8 Serz.get
-
 
 -- can be statement code
 class (Codeable a) where
@@ -102,7 +97,7 @@ instance Codeable a => Codeable [a] where
     isTheoriable l = False
     isSelfReference l = False
 
-class (Serz.Serialize s, Eq s, Nameable a k, Codeable c, Codeable c', Nameable c' a, PartOrd s) =>
+class (Binary s, Eq s, Nameable a k, Codeable c, Codeable c', Nameable c' a, PartOrd s) =>
                                        StatementC a k c c' s | s -> a, s -> c, s -> c' where
     toStatementName :: s -> a
     toStatementCode :: s -> CodeA c c'
@@ -111,11 +106,25 @@ class (Serz.Serialize s, Eq s, Nameable a k, Codeable c, Codeable c', Nameable c
     toStatementKey ::  s -> k
     toStatementKey = toKey . toStatementName
  
-class (Serz.Serialize t, StatementC a k c c' s) => TheoryC a k c c' s t | t -> s where
+class (Binary t, StatementC a k c c' s) => TheoryC a k c c' s t | t -> s where
+    fromStatementList :: [s] -> t
+    fromStatementMap :: Map.Map k s -> t
     toStatementList :: t -> [s]
+    
     toStatementMap ::  t -> Map.Map k s
-    toStatementMap x = let sts = toStatementList x in
-                       let ksts = List.map (\s -> (toStatementKey s, s)) sts in
-                       Map.fromList ksts
+    toStatementMap tt = let stsl = toStatementList tt in
+                        let kstsl = List.map (\s -> (toStatementKey s, s)) stsl in
+                        Map.fromList kstsl
 
+    insertStatementKey :: k -> s -> t -> Map.Map k s
+    insertStatementKey kk ss tt = let stsm = toStatementMap tt in                            
+                                  Map.insert kk ss stsm
 
+    lookupStatementKey :: k -> t -> Maybe s
+    lookupStatementKey kk tt = let stsm = toStatementMap tt in                            
+                               Map.lookup kk stsm
+
+    theorySize :: t -> Int
+    theorySize tt = let stsm = toStatementMap tt in
+                    Map.size stsm   
+  

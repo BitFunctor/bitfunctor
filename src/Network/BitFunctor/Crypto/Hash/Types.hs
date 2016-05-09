@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, DeriveGeneric, StandaloneDeriving #-}
 
 module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
                                             , Id
@@ -9,30 +9,42 @@ module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
                                             ) where
 
 import Crypto.Hash.Algorithms (HashAlgorithm, Keccak_256)
-import Crypto.Hash (hash, Digest, digestFromByteString)
+import Crypto.Hash (hash, Digest (..), digestFromByteString)
 
+import GHC.Generics
 import Data.Aeson
+import Data.Aeson.Types (typeMismatch)
 import Data.Binary (Binary(..))
-import qualified Data.Serialize as DS
 
 import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
-import qualified Data.Text as DT (unpack)
+import qualified Data.Text as DT (unpack, Text (..))
 import qualified Data.Text.Encoding as TE
-
-
+import qualified Data.Serialize as DS
 
 type Id = Keccak_256
 
-
 data Hash a = Hash (Digest a)
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Show, Generic)
+
+instance HashAlgorithm a => ToJSON (Digest a) where
+  toJSON d = toJSON $ TE.decodeUtf8 (convert d :: ByteString)
+
+instance HashAlgorithm a => FromJSON (Digest a) where
+  parseJSON v@(String t) = do
+                             (tt :: DT.Text) <- parseJSON v
+                             let bytes = TE.encodeUtf8 tt
+                             case digestFromByteString (bytes :: ByteString) of
+                               Just d  -> return d
+                               Nothing -> typeMismatch "Digest" v
+  parseJSON q = typeMismatch "Digest" q
 
 
-instance ToJSON (Hash a) where
-  toJSON = String . toText
-
+instance (HashAlgorithm a) => FromJSON (Hash a)
+instance (HashAlgorithm a) => ToJSON (Hash a) where
+  toEncoding = genericToEncoding defaultOptions
+  -- toJSON = String . toText
 
 instance (HashAlgorithm a) => Binary (Digest a) where
   put d = put (convert d :: ByteString)

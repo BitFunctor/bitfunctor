@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -6,9 +6,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+
 module Network.BitFunctor.Theory.Coq.Types where
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.ByteString
 import GHC.Generics
 import Data.Aeson
@@ -21,14 +22,23 @@ import qualified Data.List as List
 import qualified Data.Text.Encoding as TE
 import Data.Binary
 import qualified Network.BitFunctor.Crypto.Hash as Hash
-import qualified Data.Serialize as DS
 import qualified Data.ByteString as DBS
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
 import qualified Data.ByteArray as DBA (convert)
+import Data.Typeable (Typeable (..))
+import Data.SafeCopy (SafeCopy (..))
+import qualified Data.Serialize as DSer (Serialize (..))
+
 import Control.Lens
 
 import qualified Network.BitFunctor.Common as Common
 import Network.BitFunctor.Theory.Types
+
+newtype NewText = NewText Text.Text
+
+instance Binary NewText where
+  put (NewText txt) = put $ TE.encodeUtf8 txt
+  get     =  fmap TE.decodeUtf8 get >>= \a -> return $ NewText a
 
 data CoqStatementName = CoqStatementName { _libname :: Text
                                          , _modname :: Text
@@ -83,8 +93,6 @@ instance Codeable CoqTerm where
    isFQExtractable ct = fst ct /= BoundVariable
    isTheoriable ct = fst ct /= BoundVariable && fst ct /= SelfReference && fst ct /= LocalConstructor
 
--- (Text -> Text -> Bool) -> Char -> a -> a -> a
--- changeSelfReference t' t u  = (fst u, changeNameWith (==) (snd t') (snd t) u)
 
 data ResourceKind = Resource | StopStatement | IgnorableRes
                     deriving (Eq, Show)
@@ -94,17 +102,46 @@ data CoqStatementA a = CoqStatementA { _stname :: CoqStatementName
                                      , _stcode :: CoqCode
                                      , _stsource :: Hash.Hash Hash.Id
                                      , _stuses :: [a]
-                                     } deriving (Eq, Show, Generic)
+                                     } deriving (Eq, Show, Generic, Typeable)
 
 makeLenses ''CoqStatementA
 
-instance DS.Serialize CoqKind
-instance DS.Serialize UsesBottom
-instance DS.Serialize CoqStatementName
-instance Binary CoqStatementName
-instance DS.Serialize a => DS.Serialize (CoqStatementA a)
+instance DSer.Serialize Text.Text where
+  put txt = DSer.put $ TE.encodeUtf8 txt
+  get     = fmap TE.decodeUtf8 DSer.get
 
-instance (Eq a, DS.Serialize a) => StatementC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) where
+instance Binary CoqKind
+instance DSer.Serialize CoqKind
+instance SafeCopy CoqKind
+
+instance Binary UsesBottom
+instance DSer.Serialize UsesBottom
+instance SafeCopy UsesBottom
+
+instance Binary CoqStatementName
+instance DSer.Serialize CoqStatementName
+instance SafeCopy CoqStatementName
+
+instance FromJSON CoqStatementName
+instance ToJSON CoqStatementName where
+   toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON UsesBottom
+instance ToJSON UsesBottom where
+   toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON CoqKind
+instance ToJSON CoqKind where
+   toEncoding = genericToEncoding defaultOptions
+
+
+instance FromJSON a => FromJSON (CoqStatementA a)
+instance ToJSON a => ToJSON (CoqStatementA a)
+instance Binary a => Binary (CoqStatementA a)
+instance DSer.Serialize a => DSer.Serialize (CoqStatementA a)
+instance DSer.Serialize a => SafeCopy (CoqStatementA a)
+
+instance (Eq a, Binary a) => StatementC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) where
     toStatementName = _stname
     toStatementCode = _stcode
     changeStatementCode c s = stcode .~ c $ s
@@ -112,27 +149,24 @@ instance (Eq a, DS.Serialize a) => StatementC CoqStatementName CoqStatementName 
     changeStatementName n s = stname .~ n $ s
 
 
-type PreCoqTheory a = Map.Map CoqStatementName (CoqStatementA a) 
+type PreCoqTheory a = Map.Map CoqStatementName (CoqStatementA a)
 
-data UsesBottom  = Bottom deriving (Eq, Show, Generic)
+data UsesBottom  = Bottom deriving (Eq, Show, Generic, Typeable)
 type CoqStatementT = CoqStatementA UsesBottom
-type CoqTheoryT = PreCoqTheory CoqStatementT
+type CoqTheoryT = PreCoqTheory UsesBottom
 
 
-instance (Eq a, DS.Serialize a) => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) (PreCoqTheory a) where    
-    toStatementList t = Map.elems t
-    toStatementMap t = t
-
-instance (Eq a, DS.Serialize a) => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) [CoqStatementA a] where    
-    toStatementList t = t
-    
-
--- obsolete type, refactoring is needed
-data Kind = Type0 | Function0 | Theorem0
-            deriving (Eq, Show, Generic)
+instance (Eq a, Binary a) => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) (PreCoqTheory a) where    
+    toStatementList = Map.elems
+    toStatementMap = id
+    fromStatementMap = id
+    fromStatementList = toStatementMap
 
 
--- instance DS.Serialize CoqTheoryT
+instance (Eq a, Binary a) => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) [CoqStatementA a] where    
+    toStatementList = id
+    fromStatementMap = Map.elems
+    fromStatementList = id
 
 
 instance PartOrd (CoqStatementA a) where
@@ -146,6 +180,15 @@ instance PartOrd (CoqStatementA a) where
                                      if (List.elem (s2^.stname) $ List.map snd $ rights cl1) then Common.PGT else
                                      if (s1^.stname == s2^.stname) then Common.PEQ else
                                      Common.PNC
+
+
+
+
+-- obsolete type, refactoring is needed
+data Kind = Type0 | Function0 | Theorem0
+            deriving (Eq, Show, Generic)
+
+
 {--
 ordStatement s1 s2 = if (Map.member (stname s1) $ Map.fromList (List.map (\u -> (snd u, True)) $ stuses s2)) then Common.PLT else
                      if (Map.member (stname s2) $ Map.fromList (List.map (\u -> (snd u, True)) $ stuses s1)) then Common.PGT else
