@@ -35,7 +35,7 @@ instance HashAlgorithm a => FromJSON (Digest a) where
                              (tt :: DT.Text) <- parseJSON v
                              let (bytes, failbytes) = B16.decode $ TE.encodeUtf8 tt
                              if not . B.null $ failbytes then
-                               typeMismatch "fromjson: can't parse digest (unparsable substring" v
+                               typeMismatch "fromjson: can't parse digest (unparsable substring)" v
                              else case digestFromByteString (bytes :: ByteString) of
                                Just d  -> return d
                                Nothing -> typeMismatch "fromjson: can't parse digest" v
