@@ -19,6 +19,6 @@ tests = testGroup "Network.BitFunctor.Transaction.Tests"
 
 
 prop_verifysign :: Account -> Transaction -> Bool
-prop_verifysign acc tx = (verify $ fromJust $ sign acc tx') == True
+prop_verifysign acc tx = verify $ fromJust $ sign acc tx'
                        where tx' = tx { input = txi { sender = (toAccountId acc) } }
                              txi = input tx
