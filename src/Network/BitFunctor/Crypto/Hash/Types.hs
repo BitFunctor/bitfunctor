@@ -5,7 +5,6 @@ module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
                                             , Id
                                             , Keccak_256
                                             , Hash (..)
-                                            , toString
                                             ) where
 
 import Crypto.Hash.Algorithms (HashAlgorithm, Keccak_256)
@@ -13,11 +12,11 @@ import Crypto.Hash (hash, Digest (..), digestFromByteString)
 
 import GHC.Generics
 import Data.Aeson
-import Data.Aeson.Types (typeMismatch)
+import Data.Aeson.Types (typeMismatch, defaultOptions)
 import Data.Binary (Binary(..))
 
 import Data.ByteArray (convert)
-import Data.ByteString (ByteString)
+import Data.ByteString as B (ByteString, null)
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
 import qualified Data.Text as DT (unpack, Text (..))
 import qualified Data.Text.Encoding as TE
@@ -29,22 +28,23 @@ data Hash a = Hash (Digest a)
               deriving (Eq, Ord, Show, Generic)
 
 instance HashAlgorithm a => ToJSON (Digest a) where
-  toJSON d = toJSON $ TE.decodeUtf8 (convert d :: ByteString)
+  toJSON = toJSON . TE.decodeUtf8 . B16.encode . convert
 
 instance HashAlgorithm a => FromJSON (Digest a) where
   parseJSON v@(String t) = do
                              (tt :: DT.Text) <- parseJSON v
-                             let bytes = TE.encodeUtf8 tt
-                             case digestFromByteString (bytes :: ByteString) of
+                             let (bytes, failbytes) = B16.decode $ TE.encodeUtf8 tt
+                             if not . B.null $ failbytes then
+                               typeMismatch "fromjson: can't parse digest (unparsable substring" v
+                             else case digestFromByteString (bytes :: ByteString) of
                                Just d  -> return d
-                               Nothing -> typeMismatch "Digest" v
-  parseJSON q = typeMismatch "Digest" q
+                               Nothing -> typeMismatch "fromjson: can't parse digest" v
+  parseJSON q = typeMismatch "fromjson: digest type mismatch" q
 
 
 instance (HashAlgorithm a) => FromJSON (Hash a)
 instance (HashAlgorithm a) => ToJSON (Hash a) where
-  toEncoding = genericToEncoding defaultOptions
-  -- toJSON = String . toText
+  toJSON = genericToJSON defaultOptions
 
 instance (HashAlgorithm a) => Binary (Digest a) where
   put d = put (convert d :: ByteString)
@@ -70,7 +70,3 @@ instance DS.Serialize (Digest Id) where
 instance DS.Serialize (Hash Id) where
   put (Hash digest) = DS.put digest
   get = DS.get >>= \algo -> return (Hash algo)
-
-
-toString = DT.unpack . toText
-toText (Hash d) = TE.decodeUtf8 . B16.encode $ convert d
