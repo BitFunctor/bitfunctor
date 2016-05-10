@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.ByteString
 import GHC.Generics
 import Data.Aeson
-import Data.Aeson.Types (typeMismatch)
+import Data.Aeson.Types (typeMismatch, defaultOptions)
 import Control.Applicative
 import Data.Text as Text
 import Data.Monoid
@@ -124,15 +124,15 @@ instance SafeCopy CoqStatementName
 
 instance FromJSON CoqStatementName
 instance ToJSON CoqStatementName where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 instance FromJSON UsesBottom
 instance ToJSON UsesBottom where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 instance FromJSON CoqKind
 instance ToJSON CoqKind where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 
 instance FromJSON a => FromJSON (CoqStatementA a)

@@ -65,23 +65,23 @@ deriving instance Generic ExtractTerm
 
 instance FromJSON InsertKey
 instance ToJSON InsertKey where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 instance FromJSON LookupKey
 instance ToJSON LookupKey where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 instance FromJSON ThSize
 instance ToJSON ThSize where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 instance FromJSON InitTheoryFromList
 instance ToJSON InitTheoryFromList where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 instance FromJSON ExtractTerm
 instance ToJSON ExtractTerm where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 
 data CoqTheoryAcidQuery = InsertKeyC InsertKey |
@@ -93,7 +93,7 @@ data CoqTheoryAcidQuery = InsertKeyC InsertKey |
 
 instance FromJSON CoqTheoryAcidQuery
 instance ToJSON CoqTheoryAcidQuery where
-   toEncoding = genericToEncoding defaultOptions
+   toJSON = genericToJSON defaultOptions
 
 
 --   toJSON (InsertKeyC (InsertKey k v))  = object ["query" .= "InsertKey", "key" .= toJSON k, "value" .= toJSON v]

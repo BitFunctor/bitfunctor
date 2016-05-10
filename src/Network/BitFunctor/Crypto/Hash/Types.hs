@@ -5,6 +5,7 @@ module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
                                             , Id
                                             , Keccak_256
                                             , Hash (..)
+                                            , toString
                                             ) where
 
 import Crypto.Hash.Algorithms (HashAlgorithm, Keccak_256)
@@ -70,3 +71,5 @@ instance DS.Serialize (Digest Id) where
 instance DS.Serialize (Hash Id) where
   put (Hash digest) = DS.put digest
   get = DS.get >>= \algo -> return (Hash algo)
+
+toString (Hash d) = DT.unpack . TE.decodeUtf8 . B16.encode $ convert d
