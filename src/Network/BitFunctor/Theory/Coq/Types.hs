@@ -175,12 +175,12 @@ instance PartOrd (CoqStatementA a) where
                        case (sc1, sc2) of
                          (Left _, _) -> Common.PNC
                          (_, Left _) -> Common.PNC
-                         (Right cl1, Right cl2) ->
-                                     if (List.elem (s1^.stname) $ List.map snd $ rights cl2) then Common.PLT else
-                                     if (List.elem (s2^.stname) $ List.map snd $ rights cl1) then Common.PGT else
-                                     if (s1^.stname == s2^.stname) then Common.PEQ else
-                                     Common.PNC
-
+                         (Right cl1, Right cl2) | List.elem (s1^.stname) $ List.map snd $ rights cl2
+                                                                           -> Common.PLT
+                                                | List.elem (s2^.stname) $ List.map snd $ rights cl1
+                                                                           -> Common.PGT
+                                                | s1^.stname == s2^.stname -> Common.PEQ
+                                                | otherwise                -> Common.PNC
 
 
 
