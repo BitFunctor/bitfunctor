@@ -18,7 +18,7 @@ import Data.Binary (encode)
 
 import Network.BitFunctor.Transaction.Types
 import Network.BitFunctor.Account
-import Network.BitFunctor.Token (BTF (..), (+.))
+import Network.BitFunctor.Asset
 
 
 sign :: Account -> Transaction -> Maybe Transaction
@@ -35,9 +35,9 @@ verify tx = C.verify (pubKey . fromAccountId $ from tx)
 
 
 value :: Transaction -> BTF
-value tx = fee tx +. case inputType $ input tx of
+value tx = fee tx + case inputType $ input tx of
                        Value { amount = amnt } -> amnt
-                       _ -> BTF 0
+                       _ -> 0
 
 from :: Transaction -> AccountId
 from = sender . input
@@ -47,9 +47,8 @@ to = recipient . output
 
 validateHeader :: Transaction -> Bool
 validateHeader tx = worthwhile && signatureValid
-                  where worthwhile     = value tx >= BTF 0
+                  where worthwhile     = value tx >= 0
                         signatureValid = verify tx
 
 signEncode :: Transaction -> B.ByteString
 signEncode = BL.toStrict . encode . TransactionSigning
-

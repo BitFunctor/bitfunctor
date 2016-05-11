@@ -5,7 +5,7 @@ module Network.BitFunctor.State.GlobalLedger ( GlobalLedger
 
 import qualified Network.BitFunctor.State.Ledger as L
 import Network.BitFunctor.Account
-import Network.BitFunctor.Token
+import Network.BitFunctor.Asset
 import Network.BitFunctor.Block
 
 import qualified Data.Map as M

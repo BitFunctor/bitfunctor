@@ -19,6 +19,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Network.BitFunctor.Account,
+                       Network.BitFunctor.Asset,
                        Network.BitFunctor.Block,
                        Network.BitFunctor.Block.Types,
                        Network.BitFunctor.Crypto.Hash,
@@ -36,7 +37,6 @@ library
                        Network.BitFunctor.Theory.Coq.Extraction.Constants,
                        Network.BitFunctor.Theory.Coq.Extraction.GlobFileParser,
                        Network.BitFunctor.Theory.Coq.Extraction.FileExtraction,
-                       Network.BitFunctor.Token,
                        Network.BitFunctor.Transaction,
                        Network.BitFunctor.Transaction.Types,
                        Network.BitFunctor.Common

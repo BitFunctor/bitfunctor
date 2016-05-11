@@ -10,7 +10,7 @@ import Control.Monad (foldM)
 
 import Network.BitFunctor.Account
 import Network.BitFunctor.Transaction as Tx
-import Network.BitFunctor.Token
+import Network.BitFunctor.Asset
 import Network.BitFunctor.Identifiable as I
 
 
@@ -22,7 +22,7 @@ data Ledger = Ledger {
 
 
 accountBalance :: Ledger -> AccountId -> BTF
-accountBalance le acc = M.findWithDefault (BTF 0) acc (tokens le)
+accountBalance le acc = M.findWithDefault 0 acc (tokens le)
 
 accountOptions :: Ledger -> AccountId -> [CBTF]
 accountOptions le acc = M.findWithDefault [] acc (cTokens le)
@@ -60,8 +60,8 @@ tokenTransferValid le tx = accountBalance le (Tx.from tx) >= Tx.value tx
 
 
 moveTokens :: Ledger -> AccountId -> AccountId -> BTF -> Ledger
-moveTokens le from to value = le { tokens =   M.insert to   (balanceTo   +. value)
-                                            . M.insert from (balanceFrom -. value)
+moveTokens le from to value = le { tokens =   M.insert to   (balanceTo   + value)
+                                            . M.insert from (balanceFrom - value)
                                             $ tokens le
                                  } -- TODO: purge accounts with 0 balance
                               where balanceFrom = accountBalance le from
