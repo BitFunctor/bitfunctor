@@ -86,7 +86,7 @@ writeExtractedTerms' :: [Text.Text] -> [CoqStatementT] -> IO()
 writeExtractedTerms' [] _ = return ()
 writeExtractedTerms' terms th = do
                      putStrLn "Extracting terms..."
-                     let ec = TE.extractTermsCode terms th
+                     let ec = TE.extractTermsCode th terms 
                      let extractedCodes = Prelude.concat ec       
                      forM_ extractedCodes (\t -> do
                                             date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
@@ -103,17 +103,16 @@ writeExtractedTerms (t:ts) = do
                      initialRequest <- parseUrl "http://localhost:2718/requestdb"
                      let request = initialRequest { method = "POST"
                                                    , requestBody = RequestBodyLBS $ DA.encode requestObject
-                                                   , requestHeaders = [ ("Content-Type", "application/json; charset=utf-8")]
-                                                  }                     
+                                                   , requestHeaders = [ ("Content-Type", "application/json; charset=utf-8")] }                     
                      withResponse request manager $ \response -> do
                              putStrLn $ "The status code was: " ++ show (statusCode $ responseStatus response)
                              jcodes <- bodyReaderSource (responseBody response)
                                       $$ sinkParser json
-                             let (rcodes :: DA.Result [Text.Text]) = DA.fromJSON jcodes
+                             let (rcodes :: DA.Result (AcidResult [Text.Text])) = DA.fromJSON jcodes
                              case rcodes of
                                 DA.Error s -> putStrLn $ "Error in parsing JSON: " ++ s
-                                DA.Success [] -> putStrLn $ "The term is not found"
-                                DA.Success codes -> forM_ codes (\t -> do
+                                DA.Success AcidResultError -> putStrLn $ "The term is not found"
+                                DA.Success (AcidResultSuccess codes) -> forM_ codes (\t -> do
                                                                date <- Time.getCurrentTime -- "2008-04-18 14:11:22.476894 UTC"
                                                                let sename = "Ex" ++ Constants.generatedFilePrefix ++ (toString $ Ident.id $ Ident.ByBinary $ show date) ++ Constants.vernacFileSuffix 
                                                                DTIO.writeFile sename t)                     

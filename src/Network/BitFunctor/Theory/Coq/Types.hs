@@ -34,12 +34,6 @@ import Control.Lens
 import qualified Network.BitFunctor.Common as Common
 import Network.BitFunctor.Theory.Types
 
-newtype NewText = NewText Text.Text
-
-instance Binary NewText where
-  put (NewText txt) = put $ TE.encodeUtf8 txt
-  get     =  fmap TE.decodeUtf8 get >>= \a -> return $ NewText a
-
 data CoqStatementName = CoqStatementName { _libname :: Text
                                          , _modname :: Text
                                          , _sname :: Text} deriving (Eq, Ord, Show, Generic)
@@ -114,9 +108,6 @@ instance Binary CoqKind
 instance DSer.Serialize CoqKind
 instance SafeCopy CoqKind
 
-instance Binary UsesBottom
-instance DSer.Serialize UsesBottom
-instance SafeCopy UsesBottom
 
 instance Binary CoqStatementName
 instance DSer.Serialize CoqStatementName
@@ -126,9 +117,6 @@ instance FromJSON CoqStatementName
 instance ToJSON CoqStatementName where
    toJSON = genericToJSON defaultOptions
 
-instance FromJSON UsesBottom
-instance ToJSON UsesBottom where
-   toJSON = genericToJSON defaultOptions
 
 instance FromJSON CoqKind
 instance ToJSON CoqKind where
@@ -151,9 +139,8 @@ instance (Eq a, Binary a) => StatementC CoqStatementName CoqStatementName Text C
 
 type PreCoqTheory a = Map.Map CoqStatementName (CoqStatementA a)
 
-data UsesBottom  = Bottom deriving (Eq, Show, Generic, Typeable)
-type CoqStatementT = CoqStatementA UsesBottom
-type CoqTheoryT = PreCoqTheory UsesBottom
+type CoqStatementT = CoqStatementA () 
+type CoqTheoryT = PreCoqTheory () 
 
 
 instance (Eq a, Binary a) => TheoryC CoqStatementName CoqStatementName Text CoqTerm (CoqStatementA a) (PreCoqTheory a) where    
@@ -182,74 +169,8 @@ instance PartOrd (CoqStatementA a) where
                                                 | s1^.stname == s2^.stname -> Common.PEQ
                                                 | otherwise                -> Common.PNC
 
-
-
 -- obsolete type, refactoring is needed
 data Kind = Type0 | Function0 | Theorem0
             deriving (Eq, Show, Generic)
 
 
-{--
-ordStatement s1 s2 = if (Map.member (stname s1) $ Map.fromList (List.map (\u -> (snd u, True)) $ stuses s2)) then Common.PLT else
-                     if (Map.member (stname s2) $ Map.fromList (List.map (\u -> (snd u, True)) $ stuses s1)) then Common.PGT else
-                     if (stname s1 == stname s2) then Common.PEQ else
-                     Common.PNC--}
-
---instance FromJSON Code where
---  parseJSON (Object c) = CoqText <$> c .: "coqText"
---  parseJSON invalid    = typeMismatch "Code" invalid
-
---instance ToJSON Code where
--- toJSON (CoqText c) = object [ "coqText" .= show c ]
-
-
---instance FromJSON Kind where
--- parseJSON (String "Type")     = return Type0
--- parseJSON (String "Function") = return Function0
--- parseJSON (String "Theorem")  = return Theorem0
--- parseJSON invalid             = typeMismatch "Kind" invalid
-
---instance ToJSON Kind where
--- toJSON Type0     = toJSON ("Type"     :: String)
--- toJSON Function0 = toJSON ("Function" :: String)
--- toJSON Theorem0  = toJSON ("Theorem"  :: String)
-
--- fromCode :: Code a -> Text
--- fromCode (CoqText t) = t
-
-
-{--
-
-type HashId = Hash.Hash Hash.Id
-type Statement = StatementA HashId
-type Theory = Map.Map String Statement
-type HashCodePart = CoqCodePart HashId
-type HashCode = Code HashId
-
-
-type PreTheory a = Map.Map CoqStatementName (StatementA a)
-type PreStatementWithList = StatementA CoqTerm
-type PreTheoryWithList = PreTheory CoqTerm
-type PreCode = Code CoqTerm
-type PreCodePart = CoqCodePart CoqTerm
-type PreTheoryList = [PreStatementWithList]
-
-
-instance Binary HashCodePart
-instance Binary HashCode
-instance Binary CoqKind
-instance Binary CoqStatementName
-instance Binary Statement
-
-instance DS.Serialize DT.Text where
-  put txt = DS.put $ TE.encodeUtf8 txt
-  get     = fmap TE.decodeUtf8 DS.get
-
-instance DS.Serialize CoqStatementName
-instance DS.Serialize CoqKind
-instance DS.Serialize PreCode
-instance DS.Serialize PreCodePart
-instance DS.Serialize PreStatementWithList
---}
-
--- instance DS.Serialize PreTheoryList
