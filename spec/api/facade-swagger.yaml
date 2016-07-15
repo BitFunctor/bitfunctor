@@ -152,28 +152,8 @@ paths:
 
   /state/{id}:
     get:
-      summary: Base url/endpoint for state-specific endpoints
-      description: Each implementation of particular state ought to specify his own endpoints in this API subtree
-      responses:
-        200:
-          description: OK
-        default:
-            description: Error response
-            schema:
-              $ref: '#/definitions/Error'
-      parameters:
-        - name: id
-          in: path
-          description: ID of a state
-          required: true
-          type: string
-      tags:
-        - Generalized States
-
-  /state/{id}/info:
-    get:
       summary: State type metadata by ID
-      description: Get registered state modificators' information by state id. This endpoint is a part of the generalized interface.
+      description: Get registered state modificators' information by state id. This endpoint is a part of the generalized interface being base url/endpoint for state-specific operations. Each implementation of particular state ought to specify his own endpoints in this API subtree.
       responses:
         200:
           description: An array of state registration metadata
@@ -216,7 +196,7 @@ paths:
         - "State: Ledger"
         - "State: Ledger: Generalized Assets"
 
-  /state/ledger/asset/{id}/info:
+  /state/ledger/asset/{id}:
     get:
       summary: Asset metadata by ID
       description: Get registered asset information by its id
@@ -396,7 +376,7 @@ definitions:
     properties:
       id:
         type: string
-        description: Account's public address (Account ID)
+        description: Account's public address
       netWealth:
         type: number
       firstSeen:
