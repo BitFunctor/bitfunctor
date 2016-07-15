@@ -288,6 +288,9 @@ definitions:
       data:
         type: string
         description: hex-encoded binary
+    required:
+      - format
+      - data
   Transaction:
     type: object
     properties:
@@ -303,6 +306,9 @@ definitions:
       data:
         type: string
         description: hex-encoded binary
+    required:
+      - format
+      - data
   StateMetadata:
     type: object
     properties:
