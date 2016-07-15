@@ -269,6 +269,54 @@ paths:
         - "State: Ledger"
         - "State: Ledger: Generalized Assets"
 
+  /state/ledger/account/{id}:
+    get:
+      summary: "Account summary information: assets, etc."
+      responses:
+        200:
+          description: An array of summaries for requested accounts
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/LedgerAccountSummary'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: Account ID
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - "State: Ledger"
+
+  /state/ledger/account/{id}/assets:
+    get:
+      summary: Account asset ownership information
+      responses:
+        200:
+          description: An array of asset wealths
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/LedgerAccountAssetWealth'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: Account ID
+          required: true
+          type: string
+      tags:
+        - "State: Ledger"
 
 definitions:
   Block:
@@ -341,6 +389,28 @@ definitions:
       account:
         type: string
         description: Account's public address
+      wealth:
+        type: number
+  LedgerAccountSummary:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Account's public address (Account ID)
+      netWealth:
+        type: number
+      firstSeen:
+        type: string
+        format: dateTime
+      lastSeen:
+        type: string
+        format: dateTime
+  LedgerAccountAssetWealth:
+    type: object
+    properties:
+      asset:
+        type: string
+        description: Asset Id
       wealth:
         type: number
   Error:
