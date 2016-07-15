@@ -131,14 +131,18 @@ unfoldUses (st:sts) acct th = -- do
 unfoldUsesList :: TheoryC a k c c' s t => [s] -> t -> [[s]]
 unfoldUsesList sts th = List.map (\s -> unfoldUses [s] [] th) sts 
 
+getStatementsBySuffix :: TheoryC a k c c' s t => t -> Text.Text -> [s]
+getStatementsBySuffix th sfx = let thl = toStatementList th in
+                               List.filter (\s -> ((toSuffix $ toStatementName s) == sfx)) thl
+
+
 extractTerms :: TheoryC a k c c' s t => t -> [Text.Text] -> [[[s]]]
 extractTerms _ []  = []
 extractTerms th (tt:tts) = let et =
-                                  let fsts = List.filter (\s -> ((toSuffix $ toStatementName s) == tt)) $ toStatementList th in
+                                  let fsts = getStatementsBySuffix th tt in
                                   let r = unfoldUsesList fsts th in
-                                  List.map (Common.partsort toStatementName partCompare) r  in
-                            let r = extractTerms th tts in
-                            (et:r)
+                                  List.map (Common.partsort toStatementName partCompare) r in
+                           et:(extractTerms th tts)
 
 shortenLibNames :: StatementC a k c c' s => [s] -> ([s], [(Text.Text, Text.Text)])
 shortenLibNames sts = let preforig = List.nub $ mapped %~ (toPrefix '_' . toStatementName) $ sts in
@@ -147,8 +151,8 @@ shortenLibNames sts = let preforig = List.nub $ mapped %~ (toPrefix '_' . toStat
                       (sts, chmap) 
 
 
-extractTermsCode :: TheoryC a k c c' s t => [Text.Text] -> t -> [[Text.Text]]
-extractTermsCode ts th =  let extss' = extractTerms th ts in
+extractTermsCode :: TheoryC a k c c' s t => t -> [Text.Text] -> [[Text.Text]]
+extractTermsCode th ts =  let extss' = extractTerms th ts in
                           -- putStrLn $ "Length of extracted terms: " ++ (show $ mapped.mapped %~ List.length $ extss')
                           let chlibmap = mapped.mapped %~ shortenLibNames $ extss' in
                           mapped.mapped %~ (\(exts, chmap) -> Text.concat $
