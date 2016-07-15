@@ -1,0 +1,349 @@
+swagger: '2.0'
+
+info:
+  title: BitFunctor API
+  description: BitFunctor Facade REST API
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: "0.1.0"
+
+externalDocs:
+  description: BitFunctor project wiki
+  url: https://wiki.bitfunctor.net/
+
+host: node.bitfunctor.net
+schemes:
+  - https
+basePath: "/api/v0.1"
+consumes:
+  - application/json
+produces:
+  - application/json
+
+
+paths:
+
+  /blockchain/block/{id}:
+    get:
+      summary: Block by its ID
+      description: Get block by its ID, either hash or height
+      responses:
+        200:
+          description: Block response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Block'
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of a block
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - Blockchain
+  
+  /blockchain/block:
+    post:
+      summary: Submit block to the network
+      description: Try submit a block to the network providing its hex-encoded blob
+      responses:
+        301:
+          description: Decoded block and its permanent location
+          schema:
+            $ref: '#/definitions/Block'
+          headers:
+            Location: 
+              description: Permanent block location "/blockchain/block/{id}"
+              type: string
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: block
+          in: body
+          description: Block submission
+          required: true
+          schema:
+            $ref: '#/definitions/BlockSubmission'
+      tags:
+        - Blockchain
+
+  /blockchain/transaction/{id}:
+    get:
+      summary: Transaction by its ID
+      description: Get transaction by its unique identifier
+      responses:
+        200:
+          description: Transaction response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Transaction'
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of a transaction
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - Blockchain
+    
+  /blockchain/transaction:
+    post:
+      summary: Submit transaction to the network
+      description: Try submit a tx to the network providing its hex-encoded blob
+      responses:
+        301:
+          description: Decoded tx with its permanent location
+          schema:
+            $ref: '#/definitions/Transaction'
+          headers:
+            Location: 
+              description: Permanent tx location "/blockchain/transaction/{id}"
+              type: string
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: transaction
+          in: body
+          description: Transaction submission
+          required: true
+          schema:
+            $ref: '#/definitions/TransactionSubmission'
+      tags:
+        - Blockchain
+
+  /state:
+    get:
+      summary: (Generalized) State types
+      description: A list of state types currently registered on the blockchain
+      responses:
+        200:
+          description: An array of IDs of states
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      tags:
+        - Generalized States
+
+  /state/{id}:
+    get:
+      summary: Base url/endpoint for state-specific endpoints
+      description: Each implementation of particular state ought to specify his own endpoints in this API subtree
+      responses:
+        200:
+          description: OK
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of a state
+          required: true
+          type: string
+      tags:
+        - Generalized States
+
+  /state/{id}/info:
+    get:
+      summary: State type metadata by ID
+      description: Get registered state modificators' information by state id. This endpoint is a part of the generalized interface.
+      responses:
+        200:
+          description: An array of state registration metadata
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/StateMetadata'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of a state
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - Generalized States
+  
+  /state/ledger/asset:
+    get:
+      summary: Asset types
+      description: A list of asset types currently registered in the ledger state
+      responses:
+        200:
+          description: An array of IDs of assets
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      tags:
+        - "State: Ledger"
+        - Assets
+
+  /state/ledger/asset/{id}/info:
+    get:
+      summary: Asset metadata by ID
+      description: Get registered asset information by its id
+      responses:
+        200:
+          description: An array of asset registration metadata
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/AssetMetadata'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of an asset
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - "State: Ledger"
+        - Assets
+
+  /state/ledger/asset/{id}/distribution:
+    get:
+      summary: Asset distribution over accounts
+      description: Get asset distribution over accounts by asset id
+      responses:
+        200:
+          description: An array of asset wealth of accounts in no particular order
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/AssetDistribution'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of an asset
+          required: true
+          type: string
+      tags:
+        - "State: Ledger"
+        - Assets
+
+
+definitions:
+  Block:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Unique identifier 
+      height:
+        type: number
+  BlockSubmission:
+    type: object
+    properties:
+      format:
+        type: string
+        description: hex for hex-encoded binary is the only option for now
+      data:
+        type: string
+        description: hex-encoded binary
+  Transaction:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Unique identifier 
+  TransactionSubmission:
+    type: object
+    properties:
+      format:
+        type: string
+        description: hex for hex-encoded binary is the only option for now
+      data:
+        type: string
+        description: hex-encoded binary
+  StateMetadata:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Unique identifier
+      owner:
+        type: string
+        description: State owner's public address
+      registered:
+        type: string
+        format: date-time
+  AssetMetadata:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Unique identifier
+      ticker:
+        type: string
+      owner:
+        type: string
+        description: Owner's public address
+      registered:
+        type: string
+        format: date-time
+  AssetDistribution:
+    type: object
+    properties:
+      account:
+        type: string
+        description: Account's public address
+      wealth:
+        type: number
+  Error:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      message:
+        type: string
+      fields:
+        type: string
