@@ -344,6 +344,8 @@ definitions:
       format:
         type: string
         description: hex for hex-encoded binary is the only option for now
+        enum:
+          - hex
       data:
         type: string
         description: hex-encoded binary
@@ -362,6 +364,8 @@ definitions:
       format:
         type: string
         description: hex for hex-encoded binary is the only option for now
+        enum:
+          - hex
       data:
         type: string
         description: hex-encoded binary
