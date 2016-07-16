@@ -275,6 +275,37 @@ paths:
       tags:
         - "State: Ledger"
 
+  /state/ledger/account/{id}/transfers:
+    get:
+      summary: Asset transfers assotiated with an account
+      description: List of incoming and outgoing transaction ids
+      responses:
+        200:
+          description: List of transaction ids
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: Account ID
+          required: true
+          type: string
+        - name: type
+          in: query
+          description: Type of the transfer, either incoming or outgoing
+          type: string
+          enum:
+            - incoming
+            - outgoing
+      tags:
+        - "State: Ledger"
+
   /state/ledger/account/{id}/assets:
     get:
       summary: Account asset ownership information
