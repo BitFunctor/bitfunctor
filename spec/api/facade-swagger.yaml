@@ -160,7 +160,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: '#/definitions/StateMetadata'
+              $ref: '#/definitions/State'
         default:
             description: Error response
             schema:
@@ -206,7 +206,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: '#/definitions/AssetMetadata'
+              $ref: '#/definitions/Asset'
         default:
             description: Error response
             schema:
@@ -258,7 +258,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: '#/definitions/LedgerAccountSummary'
+              $ref: '#/definitions/LedgerAccount'
         default:
             description: Error response
             schema:
@@ -372,7 +372,8 @@ definitions:
     required:
       - format
       - data
-  StateMetadata:
+
+  State:
     type: object
     properties:
       id:
@@ -384,7 +385,8 @@ definitions:
       registered:
         type: string
         format: date-time
-  AssetMetadata:
+
+  Asset:
     type: object
     properties:
       id:
@@ -406,7 +408,8 @@ definitions:
         description: Account's public address
       wealth:
         type: number
-  LedgerAccountSummary:
+
+  LedgerAccount:
     type: object
     properties:
       id:
