@@ -52,6 +52,29 @@ paths:
         - Blockchain
   
   /blockchain/block:
+    get:
+      summary: List of all block ordered by height in descending order
+      responses:
+        200:
+          description: An array of block IDs
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: status
+          in: query
+          required: false
+          type: string
+          enum:
+            - all
+            - pending
+            - confirmed
+          default: all
     post:
       summary: Submit block to the network
       description: Try submit a block to the network providing its hex-encoded blob
@@ -106,6 +129,29 @@ paths:
         - Blockchain
     
   /blockchain/transaction:
+    get:
+      summary: List of all transactions in chronological order
+      responses:
+        200:
+          description: An array of IDs of transactions
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: status
+          in: query
+          required: false
+          type: string
+          enum:
+            - all
+            - pending
+            - confirmed
+          default: all
     post:
       summary: Submit transaction to the network
       description: Try submit a tx to the network providing its hex-encoded blob
