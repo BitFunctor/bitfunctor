@@ -75,6 +75,8 @@ paths:
             - pending
             - confirmed
           default: all
+      tags:
+        - Blockchain
     post:
       summary: Submit block to the network
       description: Try submit a block to the network providing its hex-encoded blob
@@ -152,6 +154,8 @@ paths:
             - pending
             - confirmed
           default: all
+      tags:
+        - Blockchain
     post:
       summary: Submit transaction to the network
       description: Try submit a tx to the network providing its hex-encoded blob
