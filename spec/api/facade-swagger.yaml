@@ -42,7 +42,7 @@ paths:
       parameters:
         - name: id
           in: path
-          description: ID of a block
+          description: ID of a block (either hash or height)
           required: true
           type: array
           items:
@@ -376,14 +376,43 @@ paths:
         - "State: Ledger"
 
 definitions:
+
+  AccountPublicAddress:
+    type: string
+    description: Account public address, also known as account id
+  BitFunctorObjectId:
+    type: string
+    description: Unique immutable identifier of the object in the BitFunctor system
+
   Block:
     type: object
     properties:
       id:
-        type: string
-        description: Unique identifier 
+        $ref: '#/definitions/BitFunctorObjectId'
       height:
         type: number
+      generator:
+        $ref: '#/definitions/AccountPublicAddress'
+      parents:
+        type: array
+        items:
+          $ref: '#/definitions/BitFunctorObjectId'
+      childs:
+        type: array
+        items:
+          $ref: '#/definitions/BitFunctorObjectId'
+      maturity:
+        description: Basically the same as "the number of confimations" with 0 being "pending"
+        type: number
+      numberOfTransactions:
+        type: number
+      fee:
+        type: number
+      sizeBytes:
+        type: number
+      firstSeen:
+        type: string
+        format: date-time
   BlockSubmission:
     type: object
     properties:
@@ -398,12 +427,88 @@ definitions:
     required:
       - format
       - data
+
+  TransactionInput:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - transfer
+          - option-create
+          - option-burn
+      asset:
+        type: string
+        description: Transfer and option burn type only. Asset Id
+      amount:
+        type: number
+        description: Transfer and option burn type only
+      payload:
+        type: string
+        description: Option create type only. Payload Id like "coq-1def3819"
+      claimAmount:
+        type: number
+        description: Option burn type only
+      sender:
+        $ref: '#/definitions/AccountPublicAddress'
+    required:
+      - type
+      - sender
+  TransactionOutput:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - regular
+      recipient:
+        $ref: '#/definitions/AccountPublicAddress'
+    required:
+      - type
+      - recipient
   Transaction:
     type: object
     properties:
       id:
+        $ref: '#/definitions/BitFunctorObjectId'
+      timestamp:
         type: string
-        description: Unique identifier 
+        format: date-time
+      maturity:
+        description: TBD. Basically max(maturities of blocks containing this transaction) + 1. Tx status is "pending" for maturity = 0, "processing" for 0 < maturity < 6, "complete"  for maturity ≥ 6. The "6" constant should be API's configurable parameter
+        type: number
+      value:
+        description: Either strict or estimated value of the transfer (strict only for BTF-BTF transfers, obviously)
+        type: number
+      input:
+        $ref: '#/definitions/TransactionInput'
+      output:
+        $ref: '#/definitions/TransactionOutput'
+      fee:
+        type: number
+      signature:
+        type: string
+      validity:
+        type: object
+        description: Results of the checks of the transaction validity, like signature, balance sufficiency, etc.
+        properties:
+          signature:
+            type: string
+            enum:
+              - valid
+              - invalid
+      blocks:
+        type: array
+        items:
+          $ref: '#/definitions/BitFunctorObjectId'
+      sizeBytes:
+        type: number
+      firstSeen:
+        type: string
+        format: date-time
+      lastSeen:
+        type: string
+        format: date-time
   TransactionSubmission:
     type: object
     properties:
@@ -423,11 +528,9 @@ definitions:
     type: object
     properties:
       id:
-        type: string
-        description: Unique identifier
+        $ref: '#/definitions/BitFunctorObjectId'
       owner:
-        type: string
-        description: State owner's public address
+        $ref: '#/definitions/AccountPublicAddress'
       registered:
         type: string
         format: date-time
@@ -436,13 +539,12 @@ definitions:
     type: object
     properties:
       id:
-        type: string
-        description: Unique identifier
+        $ref: '#/definitions/BitFunctorObjectId'
       ticker:
         type: string
+        description: Owner-specified asset ticker. Can be changed, but must be unique
       owner:
-        type: string
-        description: Owner's public address
+        $ref: '#/definitions/AccountPublicAddress'
       registered:
         type: string
         format: date-time
@@ -450,33 +552,45 @@ definitions:
     type: object
     properties:
       account:
-        type: string
-        description: Account's public address
-      wealth:
+        $ref: '#/definitions/AccountPublicAddress'
+      amount:
         type: number
 
   LedgerAccount:
     type: object
     properties:
       id:
-        type: string
-        description: Account's public address
+        $ref: '#/definitions/AccountPublicAddress'
       netWealth:
+        description: Estimated value of all assets in the underlying/core asset (e.g. BTF)
         type: number
       firstSeen:
         type: string
-        format: dateTime
+        format: date-time
       lastSeen:
         type: string
-        format: dateTime
+        format: date-time
+      numberOfAssets:
+        type: number
+      numberOfTransactions:
+        type: number
   LedgerAccountAssetWealth:
     type: object
     properties:
       asset:
+        description: Asset Id (the unique asset identifier)
         type: string
-        description: Asset Id
-      wealth:
+      assetTicker:
+        description: TBD. This asset property is subject to change, so we shouldn't
+                      include it here, but we can do so for API's user's convenience
+                      (so he won't need to call /state/ledger/asset/{id} to get the ticker)
+        type: string
+      amount:
         type: number
+      estimatedValue:
+        description: Estimated value of the asset amount in the underlying/core asset (e.g. BTF)
+        type: number
+
   Error:
     type: object
     properties:
