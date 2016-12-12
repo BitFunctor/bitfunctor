@@ -1,0 +1,607 @@
+swagger: '2.0'
+
+info:
+  title: BitFunctor API
+  description: BitFunctor Facade REST API
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: "0.1.0"
+
+externalDocs:
+  description: BitFunctor project wiki
+  url: https://wiki.bitfunctor.net/
+
+host: node.bitfunctor.net
+schemes:
+  - https
+basePath: "/api/v0.1"
+consumes:
+  - application/json
+produces:
+  - application/json
+
+
+paths:
+
+  /blockchain/block/{id}:
+    get:
+      summary: Block by its ID
+      description: Get block by its ID, either hash or height
+      responses:
+        200:
+          description: Block response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Block'
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of a block (either hash or height)
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - Blockchain
+  
+  /blockchain/block:
+    get:
+      summary: List of all block ordered by height in descending order
+      responses:
+        200:
+          description: An array of block IDs
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: status
+          in: query
+          required: false
+          type: string
+          enum:
+            - all
+            - pending
+            - confirmed
+          default: all
+      tags:
+        - Blockchain
+    post:
+      summary: Submit block to the network
+      description: Try submit a block to the network providing its hex-encoded blob
+      responses:
+        301:
+          description: Decoded block and its permanent location
+          schema:
+            $ref: '#/definitions/Block'
+          headers:
+            Location: 
+              description: Permanent block location "/blockchain/block/{id}"
+              type: string
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: block
+          in: body
+          description: Block submission
+          required: true
+          schema:
+            $ref: '#/definitions/BlockSubmission'
+      tags:
+        - Blockchain
+
+  /blockchain/transaction/{id}:
+    get:
+      summary: Transaction by its ID
+      description: Get transaction by its unique identifier
+      responses:
+        200:
+          description: Transaction response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Transaction'
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of a transaction
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - Blockchain
+    
+  /blockchain/transaction:
+    get:
+      summary: List of all transactions in chronological order
+      responses:
+        200:
+          description: An array of IDs of transactions
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: status
+          in: query
+          required: false
+          type: string
+          enum:
+            - all
+            - pending
+            - confirmed
+          default: all
+      tags:
+        - Blockchain
+    post:
+      summary: Submit transaction to the network
+      description: Try submit a tx to the network providing its hex-encoded blob
+      responses:
+        301:
+          description: Decoded tx with its permanent location
+          schema:
+            $ref: '#/definitions/Transaction'
+          headers:
+            Location: 
+              description: Permanent tx location "/blockchain/transaction/{id}"
+              type: string
+        default:
+          description: Error response
+          schema:
+            $ref: '#/definitions/Error'
+      parameters:
+        - name: transaction
+          in: body
+          description: Transaction submission
+          required: true
+          schema:
+            $ref: '#/definitions/TransactionSubmission'
+      tags:
+        - Blockchain
+
+  /state:
+    get:
+      summary: (Generalized) State types
+      description: A list of state types currently registered on the blockchain
+      responses:
+        200:
+          description: An array of IDs of states
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      tags:
+        - Generalized States
+
+  /state/{id}:
+    get:
+      summary: State type metadata by ID
+      description: Get registered state modificators' information by state id. This endpoint is a part of the generalized interface being base url/endpoint for state-specific operations. Each implementation of particular state ought to specify his own endpoints in this API subtree.
+      responses:
+        200:
+          description: An array of state registration metadata
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/State'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of a state
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - Generalized States
+  
+  /state/ledger/asset:
+    get:
+      summary: Asset types
+      description: A list of asset types currently registered in the ledger state
+      responses:
+        200:
+          description: An array of IDs of assets
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      tags:
+        - "State: Ledger"
+        - "State: Ledger: Generalized Assets"
+
+  /state/ledger/asset/{id}:
+    get:
+      summary: Asset metadata by ID
+      description: Get registered asset information by its id
+      responses:
+        200:
+          description: An array of asset registration metadata
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Asset'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of an asset
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - "State: Ledger"
+        - "State: Ledger: Generalized Assets"
+
+  /state/ledger/asset/{id}/distribution:
+    get:
+      summary: Asset distribution over accounts
+      description: Get asset distribution over accounts by asset id
+      responses:
+        200:
+          description: An array of asset wealth of accounts in no particular order
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/AssetDistribution'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: ID of an asset
+          required: true
+          type: string
+      tags:
+        - "State: Ledger"
+        - "State: Ledger: Generalized Assets"
+
+  /state/ledger/account/{id}:
+    get:
+      summary: "Account summary information: assets, etc."
+      responses:
+        200:
+          description: An array of summaries for requested accounts
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/LedgerAccount'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: Account ID
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: csv
+      tags:
+        - "State: Ledger"
+
+  /state/ledger/account/{id}/transfers:
+    get:
+      summary: Asset transfers assotiated with an account
+      description: List of incoming and outgoing transaction ids
+      responses:
+        200:
+          description: List of transaction ids
+          schema:
+            type: array
+            items:
+              type: string
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: Account ID
+          required: true
+          type: string
+        - name: type
+          in: query
+          description: Type of the transfer, either incoming or outgoing
+          type: string
+          enum:
+            - incoming
+            - outgoing
+      tags:
+        - "State: Ledger"
+
+  /state/ledger/account/{id}/assets:
+    get:
+      summary: Account asset ownership information
+      responses:
+        200:
+          description: An array of asset wealths
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/LedgerAccountAssetWealth'
+        default:
+            description: Error response
+            schema:
+              $ref: '#/definitions/Error'
+      parameters:
+        - name: id
+          in: path
+          description: Account ID
+          required: true
+          type: string
+      tags:
+        - "State: Ledger"
+
+definitions:
+
+  AccountPublicAddress:
+    type: string
+    description: Account public address, also known as account id
+  BitFunctorObjectId:
+    type: string
+    description: Unique immutable identifier of the object in the BitFunctor system
+
+  Block:
+    type: object
+    properties:
+      id:
+        $ref: '#/definitions/BitFunctorObjectId'
+      height:
+        type: number
+      generator:
+        $ref: '#/definitions/AccountPublicAddress'
+      parents:
+        type: array
+        items:
+          $ref: '#/definitions/BitFunctorObjectId'
+      childs:
+        type: array
+        items:
+          $ref: '#/definitions/BitFunctorObjectId'
+      maturity:
+        description: Basically the same as "the number of confimations" with 0 being "pending"
+        type: number
+      numberOfTransactions:
+        type: number
+      fee:
+        type: number
+      sizeBytes:
+        type: number
+      firstSeen:
+        type: string
+        format: date-time
+  BlockSubmission:
+    type: object
+    properties:
+      format:
+        type: string
+        description: hex for hex-encoded binary is the only option for now
+        enum:
+          - hex
+      data:
+        type: string
+        description: hex-encoded binary
+    required:
+      - format
+      - data
+
+  TransactionInput:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - transfer
+          - option-create
+          - option-burn
+      asset:
+        type: string
+        description: Transfer and option burn type only. Asset Id
+      amount:
+        type: number
+        description: Transfer and option burn type only
+      payload:
+        type: string
+        description: Option create type only. Payload Id like "coq-1def3819"
+      claimAmount:
+        type: number
+        description: Option burn type only
+      sender:
+        $ref: '#/definitions/AccountPublicAddress'
+    required:
+      - type
+      - sender
+  TransactionOutput:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - regular
+      recipient:
+        $ref: '#/definitions/AccountPublicAddress'
+    required:
+      - type
+      - recipient
+  Transaction:
+    type: object
+    properties:
+      id:
+        $ref: '#/definitions/BitFunctorObjectId'
+      timestamp:
+        type: string
+        format: date-time
+      maturity:
+        description: TBD. Basically max(maturities of blocks containing this transaction) + 1. Tx status is "pending" for maturity = 0, "processing" for 0 < maturity < 6, "complete"  for maturity ≥ 6. The "6" constant should be API's configurable parameter
+        type: number
+      value:
+        description: Either strict or estimated value of the transfer (strict only for BTF-BTF transfers, obviously)
+        type: number
+      input:
+        $ref: '#/definitions/TransactionInput'
+      output:
+        $ref: '#/definitions/TransactionOutput'
+      fee:
+        type: number
+      signature:
+        type: string
+      validity:
+        type: object
+        description: Results of the checks of the transaction validity, like signature, balance sufficiency, etc.
+        properties:
+          signature:
+            type: string
+            enum:
+              - valid
+              - invalid
+      blocks:
+        type: array
+        items:
+          $ref: '#/definitions/BitFunctorObjectId'
+      sizeBytes:
+        type: number
+      firstSeen:
+        type: string
+        format: date-time
+      lastSeen:
+        type: string
+        format: date-time
+  TransactionSubmission:
+    type: object
+    properties:
+      format:
+        type: string
+        description: hex for hex-encoded binary is the only option for now
+        enum:
+          - hex
+      data:
+        type: string
+        description: hex-encoded binary
+    required:
+      - format
+      - data
+
+  State:
+    type: object
+    properties:
+      id:
+        $ref: '#/definitions/BitFunctorObjectId'
+      owner:
+        $ref: '#/definitions/AccountPublicAddress'
+      registered:
+        type: string
+        format: date-time
+
+  Asset:
+    type: object
+    properties:
+      id:
+        $ref: '#/definitions/BitFunctorObjectId'
+      ticker:
+        type: string
+        description: Owner-specified asset ticker. Can be changed, but must be unique
+      owner:
+        $ref: '#/definitions/AccountPublicAddress'
+      registered:
+        type: string
+        format: date-time
+  AssetDistribution:
+    type: object
+    properties:
+      account:
+        $ref: '#/definitions/AccountPublicAddress'
+      amount:
+        type: number
+
+  LedgerAccount:
+    type: object
+    properties:
+      id:
+        $ref: '#/definitions/AccountPublicAddress'
+      netWealth:
+        description: Estimated value of all assets in the underlying/core asset (e.g. BTF)
+        type: number
+      firstSeen:
+        type: string
+        format: date-time
+      lastSeen:
+        type: string
+        format: date-time
+      numberOfAssets:
+        type: number
+      numberOfTransactions:
+        type: number
+  LedgerAccountAssetWealth:
+    type: object
+    properties:
+      asset:
+        description: Asset Id (the unique asset identifier)
+        type: string
+      assetTicker:
+        description: TBD. This asset property is subject to change, so we shouldn't
+                      include it here, but we can do so for API's user's convenience
+                      (so he won't need to call /state/ledger/asset/{id} to get the ticker)
+        type: string
+      amount:
+        type: number
+      estimatedValue:
+        description: Estimated value of the asset amount in the underlying/core asset (e.g. BTF)
+        type: number
+
+  Error:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      message:
+        type: string
+      fields:
+        type: string
