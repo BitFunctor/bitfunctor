@@ -28,16 +28,6 @@ library
                        Network.BitFunctor.Identifiable,
                        Network.BitFunctor.State.GlobalLedger,
                        Network.BitFunctor.State.Ledger,
-                       Network.BitFunctor.Theory.Complexity,
-                       Network.BitFunctor.Theory.Types,
-                       Network.BitFunctor.Theory.Utils, 
-                       Network.BitFunctor.Theory.Extraction,
-                       Network.BitFunctor.Theory.RESTServer,
-                       Network.BitFunctor.Theory.Coq.Types,
-                       Network.BitFunctor.Theory.Coq.TheoryAcid,
-                       Network.BitFunctor.Theory.Coq.Extraction.Constants,
-                       Network.BitFunctor.Theory.Coq.Extraction.GlobFileParser,
-                       Network.BitFunctor.Theory.Coq.Extraction.FileExtraction,
                        Network.BitFunctor.Transaction,
                        Network.BitFunctor.Transaction.Types,
                        Network.BitFunctor.Common
@@ -47,30 +37,15 @@ library
                        base16-bytestring,
                        aeson,
                        containers,
+                       unordered-containers,
                        text,
                        time,
+                       uuid,
                        cryptonite,
                        memory,
                        binary,
-                       directory,
-                       MissingH,
-                       parsec,
-                       parsec-numbers,
-                       process,
-                       split,
-                       utf8-string,                       
-                       byteable,
-                       lens,
-                       safecopy,
-                       acid-state,
-                       mtl,
-                       cereal,
-                       scotty,
-                       http-types,
-                       blaze-html,
-                       shakespeare,
-                       hamlet,
-                       transformers
+                       -- bitfunctor-theory compatibility
+                       cereal
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -98,41 +73,4 @@ test-suite tests
                        , tasty-hunit
                        , tasty-quickcheck
   hs-source-dirs:      test/src
-  default-language:    Haskell2010
-
-executable coqxtractor
-  main-is:             coqxtractor.hs
-  build-depends:       base
-                       , argparser
-                       , containers
-                       , text
-                       , split
-                       , time
-                       , binary
-                       , bytestring
-                       , zlib
-                       , aeson
-                       , http-types
-                       , http-client
-                       , http-client-tls
-                       , conduit
-                       , conduit-extra
-                       , http-conduit   
-                       , bitfunctor
-  hs-source-dirs:      test/src
-  default-language:    Haskell2010
-
-executable theoryd
-  main-is:             theoryd.hs
-  build-depends:       base
-                       , argparser
-                       , acid-state
-                       , mtl
-                       , safecopy
-                       , containers
-                       , binary                       
-                       , text
-                       , time                       
-                       , bitfunctor
-  hs-source-dirs:      src/Network/BitFunctor/Theory
   default-language:    Haskell2010
