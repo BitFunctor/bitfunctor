@@ -9,8 +9,6 @@ import Data.ByteArray
 import qualified Crypto.Hash as H (hash)
 
 
-type Id = Keccak_256
-
 
 hash :: (ByteArrayAccess ba, HashAlgorithm a) => ba -> Hash a
 hash = Hash . H.hash

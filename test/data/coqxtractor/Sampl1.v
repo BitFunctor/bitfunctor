@@ -5,6 +5,10 @@ Proof.
  reflexivity.
 Qed.
 
+Inductive I1 := 
+| I11: I1
+| I12: I1.
+
 Module M0.
 
 Module M1.
@@ -85,4 +89,3 @@ Variable l: @M1.M11.mylist nat.
 End M0.
 
 Variable ll: @M0.M1.M11.mylist nat.
-

@@ -5,8 +5,8 @@ version:             0.1.0.0
 homepage:            http://bitfunctor.net,
                      https://github.com/BitFunctor/bitfunctor
 bug-reports:         https://github.com/BitFunctor/bitfunctor/issues
--- license:
--- license-file:        LICENSE
+license:             MIT
+license-file:        LICENSE
 author:              andruiman <andruiman@gmail.com>,
                      Sergey Kazenyuk <kazenyuk@gmail.com>
 maintainer:          andruiman <andruiman@gmail.com>,
@@ -19,26 +19,120 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Network.BitFunctor.Account,
+                       Network.BitFunctor.Asset,
                        Network.BitFunctor.Block,
                        Network.BitFunctor.Block.Types,
                        Network.BitFunctor.Crypto.Hash,
                        Network.BitFunctor.Crypto.Hash.Types,
                        Network.BitFunctor.Crypto.Types,
                        Network.BitFunctor.Identifiable,
+                       Network.BitFunctor.State.GlobalLedger,
+                       Network.BitFunctor.State.Ledger,
                        Network.BitFunctor.Theory.Complexity,
                        Network.BitFunctor.Theory.Types,
-                       Network.BitFunctor.Token,
+                       Network.BitFunctor.Theory.Utils, 
+                       Network.BitFunctor.Theory.Extraction,
+                       Network.BitFunctor.Theory.RESTServer,
+                       Network.BitFunctor.Theory.Coq.Types,
+                       Network.BitFunctor.Theory.Coq.TheoryAcid,
+                       Network.BitFunctor.Theory.Coq.Extraction.Constants,
+                       Network.BitFunctor.Theory.Coq.Extraction.GlobFileParser,
+                       Network.BitFunctor.Theory.Coq.Extraction.FileExtraction,
                        Network.BitFunctor.Transaction,
-                       Network.BitFunctor.Transaction.Types
+                       Network.BitFunctor.Transaction.Types,
+                       Network.BitFunctor.Common
+  other-modules:
   build-depends:       base,
                        bytestring,
                        base16-bytestring,
-                       aeson >= 0.10,
+                       aeson,
                        containers,
                        text,
-                       time >= 1.5.0.1,
-                       cryptonite >= 0.9,
-                       memory >= 0.10,
-                       binary >= 0.7.6.1
+                       time,
+                       cryptonite,
+                       memory,
+                       binary,
+                       directory,
+                       MissingH,
+                       parsec,
+                       parsec-numbers,
+                       process,
+                       split,
+                       utf8-string,                       
+                       byteable,
+                       lens,
+                       safecopy,
+                       acid-state,
+                       mtl,
+                       cereal,
+                       scotty,
+                       http-types,
+                       blaze-html,
+                       shakespeare,
+                       hamlet,
+                       transformers
   hs-source-dirs:      src
+  default-language:    Haskell2010
+
+test-suite tests
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  other-modules:         Network.BitFunctor.Account.Arbitrary
+                       , Network.BitFunctor.Account.Tests
+                       , Network.BitFunctor.Crypto.Arbitrary
+                       , Network.BitFunctor.Block.Arbitrary
+                       , Network.BitFunctor.Block.Tests
+                       , Network.BitFunctor.Transaction.Arbitrary
+                       , Network.BitFunctor.Transaction.Tests
+                       , Network.BitFunctor.Tests
+  ghc-options:         -Wall -rtsopts
+  build-depends:         base
+                       , bitfunctor
+                       , cryptonite
+                       , memory
+                       , binary
+                       , HUnit
+                       , QuickCheck
+                       , quickcheck-instances
+                       , tasty
+                       , tasty-hunit
+                       , tasty-quickcheck
+  hs-source-dirs:      test/src
+  default-language:    Haskell2010
+
+executable coqxtractor
+  main-is:             coqxtractor.hs
+  build-depends:       base
+                       , argparser
+                       , containers
+                       , text
+                       , split
+                       , time
+                       , binary
+                       , bytestring
+                       , zlib
+                       , aeson
+                       , http-types
+                       , http-client
+                       , http-client-tls
+                       , conduit
+                       , conduit-extra
+                       , http-conduit   
+                       , bitfunctor
+  hs-source-dirs:      test/src
+  default-language:    Haskell2010
+
+executable theoryd
+  main-is:             theoryd.hs
+  build-depends:       base
+                       , argparser
+                       , acid-state
+                       , mtl
+                       , safecopy
+                       , containers
+                       , binary                       
+                       , text
+                       , time                       
+                       , bitfunctor
+  hs-source-dirs:      src/Network/BitFunctor/Theory
   default-language:    Haskell2010
