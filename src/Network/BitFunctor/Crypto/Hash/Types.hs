@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables, DeriveGeneric, StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
                                             , Id
@@ -16,7 +17,7 @@ import Data.Aeson
 import Data.Aeson.Types (typeMismatch, defaultOptions)
 import Data.Binary (Binary(..))
 
-import Data.ByteArray (convert)
+import Data.ByteArray (convert, ByteArrayAccess)
 import Data.ByteString as B (ByteString, null)
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
 import qualified Data.Text as DT (unpack, Text (..))
@@ -25,8 +26,8 @@ import qualified Data.Serialize as DS
 
 type Id = Keccak_256
 
-data Hash a = Hash (Digest a)
-              deriving (Eq, Ord, Show, Generic)
+newtype Hash a = Hash (Digest a)
+              deriving (Eq, Ord, Show, Generic, ByteArrayAccess)
 
 instance HashAlgorithm a => ToJSON (Digest a) where
   toJSON = toJSON . TE.decodeUtf8 . B16.encode . convert
