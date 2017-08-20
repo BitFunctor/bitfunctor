@@ -7,7 +7,7 @@ import Data.Binary (Binary (..)
 import Data.ByteString.Lazy (toStrict)
 
 class Identifiable a where
-  id :: a -> Hash Id
+  id :: a -> Hash Id a
 
 newtype ByBinary a = ByBinary a
 

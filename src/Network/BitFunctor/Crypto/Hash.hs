@@ -9,6 +9,5 @@ import Data.ByteArray
 import qualified Crypto.Hash as H (hash)
 
 
-
-hash :: (ByteArrayAccess ba, HashAlgorithm a) => ba -> Hash a
+hash :: (ByteArrayAccess ba, HashAlgorithm a) => ba -> Hash a w
 hash = Hash . H.hash

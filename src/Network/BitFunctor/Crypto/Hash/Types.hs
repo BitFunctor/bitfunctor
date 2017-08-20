@@ -26,8 +26,8 @@ import qualified Data.Serialize as DS
 
 type Id = Keccak_256
 
-newtype Hash a = Hash (Digest a)
-              deriving (Eq, Ord, Show, Generic, ByteArrayAccess)
+newtype Hash a w = Hash (Digest a)
+  deriving (Eq, Ord, Show, Generic, ByteArrayAccess)
 
 instance HashAlgorithm a => ToJSON (Digest a) where
   toJSON = toJSON . TE.decodeUtf8 . B16.encode . convert
@@ -44,8 +44,8 @@ instance HashAlgorithm a => FromJSON (Digest a) where
   parseJSON q = typeMismatch "fromjson: digest type mismatch" q
 
 
-instance (HashAlgorithm a) => FromJSON (Hash a)
-instance (HashAlgorithm a) => ToJSON (Hash a) where
+instance (HashAlgorithm a) => FromJSON (Hash a w)
+instance (HashAlgorithm a) => ToJSON (Hash a w) where
   toJSON = genericToJSON defaultOptions
 
 instance (HashAlgorithm a) => Binary (Digest a) where
@@ -56,7 +56,7 @@ instance (HashAlgorithm a) => Binary (Digest a) where
       Just d  -> return d
       Nothing -> fail "binary: can't parse digest"
 
-instance (HashAlgorithm a) => Binary (Hash a) where
+instance (HashAlgorithm a) => Binary (Hash a w) where
   put (Hash digest) = put digest
   get = get >>= \algo -> return $ Hash algo
 
@@ -69,7 +69,7 @@ instance DS.Serialize (Digest Id) where
       Just d  -> return d
       Nothing -> fail "binary: can't parse digest"
 
-instance DS.Serialize (Hash Id) where
+instance DS.Serialize (Hash Id w) where
   put (Hash digest) = DS.put digest
   get = DS.get >>= \algo -> return (Hash algo)
 

@@ -26,12 +26,12 @@ import Data.Word (Word8)
 
 
 
-type BlockHash = Hash Id
+type BlockHash = Hash Id Block
 
 
-data Block = Block { previous     :: Hash Id
+data Block = Block { previous     :: Hash Id Block
                    , timestamp    :: UTCTime
-                   , transactions :: [Hash Id]
+                   , transactions :: [Hash Id Transaction]
                    , baseTarget   :: Integer
                    , generator    :: AccountId
                    , signature    :: Signature

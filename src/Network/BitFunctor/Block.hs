@@ -11,13 +11,14 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Binary (encode)
 import Data.Time.Clock
 
+import Network.BitFunctor.Transaction (Transaction)
 import Network.BitFunctor.Block.Types
 import Network.BitFunctor.Crypto.Hash
 import Network.BitFunctor.Account
 
 
 
-new :: Hash Id -> Account -> [Hash Id] -> (Integer, UTCTime) -> Maybe Block
+new :: Hash Id Block -> Account -> [Hash Id Transaction] -> (Integer, UTCTime) -> Maybe Block
 new prevBlockId gen txsIds (bt, time) = do
   sign gen $ empty { previous     = prevBlockId
                    , timestamp    = time

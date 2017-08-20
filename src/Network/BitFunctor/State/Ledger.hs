@@ -12,11 +12,12 @@ import Network.BitFunctor.Account
 import Network.BitFunctor.Transaction as Tx
 import Network.BitFunctor.Asset
 import Network.BitFunctor.Identifiable as I
+import Network.BitFunctor.Crypto.Hash (Hash, Id)
 
 
 data Ledger = Ledger {
   tokens  :: M.Map AccountId BTF,
-  cTokens :: M.Map AccountId [CBTF]
+  cTokens :: M.Map AccountId [CBTF (Hash Id Tx.Transaction)]
   -- theory
 } deriving Show
 
@@ -24,7 +25,7 @@ data Ledger = Ledger {
 accountBalance :: Ledger -> AccountId -> BTF
 accountBalance le acc = M.findWithDefault 0 acc (tokens le)
 
-accountOptions :: Ledger -> AccountId -> [CBTF]
+accountOptions :: Ledger -> AccountId -> [CBTF (Hash Id Tx.Transaction)]
 accountOptions le acc = M.findWithDefault [] acc (cTokens le)
 
 applyTxs :: Ledger -> AccountId -> [Transaction] -> Maybe Ledger
@@ -67,22 +68,22 @@ moveTokens le from to value = le { tokens =   M.insert to   (balanceTo   + value
                               where balanceFrom = accountBalance le from
                                     balanceTo   = accountBalance le to
 
-moveOptions :: Ledger -> AccountId -> AccountId -> CBTF -> Ledger
+moveOptions :: Ledger -> AccountId -> AccountId -> CBTF (Hash Id Tx.Transaction) -> Ledger
 moveOptions le from to option = le { cTokens =   M.insert to   toTokens
                                                . M.insert from fromTokens
                                                $ cTokens le }
                               where fromTokens = accountOptions le from -- \\ option
                                     toTokens   = accountOptions le to   -- ++ option
 
-createOption :: Ledger -> AccountId -> CBTF -> Ledger
+createOption :: Ledger -> AccountId -> CBTF (Hash Id Tx.Transaction) -> Ledger
 createOption le acc option = le { cTokens = M.insert acc options (cTokens le) }
                            where options = option : accountOptions le acc
 
-burnOption :: Ledger -> CBTF -> BTF -> AccountId -> Ledger
+burnOption :: Ledger -> CBTF (Hash Id Tx.Transaction) -> BTF -> AccountId -> Ledger
 burnOption le token recipient = undefined
 
 
 
 
-tokenValue :: Ledger -> CBTF -> BTF
+tokenValue :: Ledger -> CBTF (Hash Id Tx.Transaction) -> BTF
 tokenValue le token = undefined

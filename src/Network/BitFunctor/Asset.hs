@@ -25,7 +25,7 @@ newtype BTF = BTF { units :: Integer }
 -- Each one is unique (depends on tx id).
 -- Value to be determined using theory complexity theory state at a time of such request.
 -- Can be exchanged (burned) to BTF at the rate equal value (or less) at the time of the exchange.
-newtype CBTF = CBTF { contributionId :: Hash Id }
+newtype CBTF c = CBTF { contributionId :: c }
                     deriving (Eq, Ord, Show)
 
 
@@ -55,10 +55,10 @@ instance Binary BTF where
       _ -> fail "binary: can't parse btf asset (wrong tag)"
 
 
-instance Asset CBTF where
+instance Asset (CBTF c) where
   quantity _ = 1
 
-instance Binary CBTF where
+instance Binary c => Binary (CBTF c) where
   put cbtf = do
     put (1 :: Word8)
     put $ contributionId cbtf

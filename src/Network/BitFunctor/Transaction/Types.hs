@@ -28,7 +28,7 @@ import Data.Word (Word8)
 
 
 
-type TransactionHash = Hash Id
+type TransactionHash = Hash Id Transaction
 
 
 data TxInput = TxInput { sender    :: AccountId
@@ -37,9 +37,9 @@ data TxInput = TxInput { sender    :: AccountId
 
 -- TODO : add announcement of code and services  
 data TxInputType = Value        { amount      :: BTF } -- transfer BTF
-                 | Option       { option      :: CBTF } -- transfer CBTF
+                 | Option       { option      :: CBTF (Hash Id Transaction) } -- transfer CBTF
                  | OptionCreate { payload     :: TheoryPayload } -- send a code  -> create option
-                 | OptionBurn   { claimOption :: CBTF -- exchange option for BTF
+                 | OptionBurn   { claimOption :: CBTF (Hash Id Transaction) -- exchange option for BTF
                                 , claimAmount :: BTF -- the exact value (this or nothing) sender wants back
                                 }
                  deriving (Show, Eq, Generic)
@@ -57,7 +57,7 @@ data Transaction = Transaction { input     :: TxInput
 
 -- Code commented to be compiled
 data TheoryPayload = TheoryPayload {
-  uses :: [Hash Id]
+  uses :: [Hash Id Transaction]
  -- , code :: Theory.Code
 } deriving (Eq, Show, Generic)
 
