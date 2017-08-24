@@ -8,9 +8,9 @@ module Network.BitFunctor.Account ( Account
                                   , toAccountId
                                   ) where
 
-import Network.BitFunctor.Crypto.Types
+import Network.BitFunctor.Crypto.Key
 
-import Crypto.PubKey.Ed25519 (toPublic, secretKey)
+import Crypto.PubKey.Ed25519 (secretKey)
 import Crypto.Error (onCryptoFailure, CryptoError)
 import Crypto.Random.EntropyPool
 import Data.ByteArray (ScrubbedBytes, Bytes, convert)

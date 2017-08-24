@@ -18,6 +18,7 @@ import Data.Time.Clock (UTCTime)
 import Network.BitFunctor.Crypto.Types
 import Data.ByteArray (convert)
 import Network.BitFunctor.Crypto.Hash (hash, Hash, Id)
+import Network.BitFunctor.Crypto.Signing
 import Network.BitFunctor.Common (UTCTimeAsPOSIXSeconds (..))
 
 import Data.Binary as Bin (Binary(..), encode)

@@ -15,8 +15,9 @@ import GHC.Generics
 
 import Network.BitFunctor.Account
 import Network.BitFunctor.Asset
-import Network.BitFunctor.Crypto.Types
+import Network.BitFunctor.Crypto.Key
 import Network.BitFunctor.Crypto.Hash (hash, Hash, Id)
+import Network.BitFunctor.Crypto.Signing
 import Network.BitFunctor.Identifiable
 -- import qualified Network.BitFunctor.Theory.Types as Theory
 import Network.BitFunctor.Common (UTCTimeAsPOSIXSeconds (..))
