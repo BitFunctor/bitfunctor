@@ -48,6 +48,7 @@ library
                        cryptonite,
                        memory,
                        binary,
+                       hashable,
                        -- bitfunctor-theory compatibility
                        cereal
   hs-source-dirs:      src

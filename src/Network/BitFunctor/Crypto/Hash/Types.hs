@@ -12,7 +12,7 @@ module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
 import Crypto.Hash.Algorithms (HashAlgorithm, Keccak_256)
 import Crypto.Hash (hash, Digest (..), digestFromByteString)
 
-import GHC.Generics
+import GHC.Generics (Generic)
 import Data.Aeson
 import Data.Aeson.Types (typeMismatch, defaultOptions)
 import Data.Binary (Binary(..))
@@ -24,10 +24,17 @@ import qualified Data.Text as DT (unpack, Text (..))
 import qualified Data.Text.Encoding as TE
 import qualified Data.Serialize as DS
 
+import Data.Hashable
+
+
 type Id = Keccak_256
 
 newtype Hash a w = Hash (Digest a)
   deriving (Eq, Ord, Show, Generic, ByteArrayAccess)
+
+
+instance Hashable (Hash a w) where
+  hashWithSalt salt h = hashWithSalt salt (convert h :: ByteString)
 
 instance HashAlgorithm a => ToJSON (Digest a) where
   toJSON = toJSON . TE.decodeUtf8 . B16.encode . convert
