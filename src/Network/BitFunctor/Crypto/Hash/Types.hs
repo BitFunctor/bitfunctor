@@ -25,6 +25,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Serialize as DS
 
 import Data.Hashable
+import qualified Data.SafeCopy as SC
 
 
 type Id = Keccak_256
@@ -55,6 +56,7 @@ instance (HashAlgorithm a) => FromJSON (Hash a w)
 instance (HashAlgorithm a) => ToJSON (Hash a w) where
   toJSON = genericToJSON defaultOptions
 
+
 instance (HashAlgorithm a) => Binary (Digest a) where
   put d = put (convert d :: ByteString)
   get = do
@@ -66,6 +68,19 @@ instance (HashAlgorithm a) => Binary (Digest a) where
 instance (HashAlgorithm a) => Binary (Hash a w) where
   put (Hash digest) = put digest
   get = get >>= \algo -> return $ Hash algo
+
+
+instance (HashAlgorithm a) => SC.SafeCopy (Digest a) where
+  putCopy d = SC.contain $ SC.safePut (convert d :: ByteString)
+  getCopy = SC.contain $ do
+    bytes <- SC.safeGet
+    case digestFromByteString (bytes :: ByteString) of
+      Just d -> return d
+      Nothing -> fail "safecopy: can't parse digest"
+
+instance (HashAlgorithm a) => SC.SafeCopy (Hash a w) where
+  putCopy (Hash digest) = SC.contain $ SC.safePut digest
+  getCopy = SC.contain $ SC.safeGet >>= \algo -> return $ Hash algo
 
 
 instance DS.Serialize (Digest Id) where

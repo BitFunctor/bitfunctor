@@ -49,6 +49,7 @@ library
                        memory,
                        binary,
                        hashable,
+                       safecopy,
                        -- bitfunctor-theory compatibility
                        cereal
   hs-source-dirs:      src
