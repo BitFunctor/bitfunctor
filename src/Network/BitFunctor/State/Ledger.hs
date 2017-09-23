@@ -46,6 +46,7 @@ applyTx le feeRcv tx = do
     (OptionBurn   { claimOption = opt, claimAmount = amnt }) -> burnOption le opt amnt to
 
 
+-- validateTx :: Ledger -> Transaction -> TxApplicationResult
 validateTx :: Ledger -> Transaction -> Bool
 validateTx le tx = Tx.validateHeader tx && tokenTransferValid le tx -- && validatePayload
 

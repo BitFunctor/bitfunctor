@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables, DeriveGeneric, StandaloneDeriving #-}
+{-# LANGUAGE ScopedTypeVariables, DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
+module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm
                                             , Id
                                             , Keccak_256
                                             , Hash (..)
@@ -10,7 +10,7 @@ module Network.BitFunctor.Crypto.Hash.Types ( HashAlgorithm (..)
                                             ) where
 
 import Crypto.Hash.Algorithms (HashAlgorithm, Keccak_256)
-import Crypto.Hash (hash, Digest (..), digestFromByteString)
+import Crypto.Hash (Digest, digestFromByteString)
 
 import GHC.Generics (Generic)
 import Data.Aeson
@@ -20,7 +20,7 @@ import Data.Binary (Binary(..))
 import Data.ByteArray (convert, ByteArrayAccess)
 import Data.ByteString as B (ByteString, null)
 import qualified Data.ByteString.Base16 as B16 (encode, decode)
-import qualified Data.Text as DT (unpack, Text (..))
+import qualified Data.Text as DT (unpack, Text)
 import qualified Data.Text.Encoding as TE
 import qualified Data.Serialize as DS
 
@@ -41,7 +41,7 @@ instance HashAlgorithm a => ToJSON (Digest a) where
   toJSON = toJSON . TE.decodeUtf8 . B16.encode . convert
 
 instance HashAlgorithm a => FromJSON (Digest a) where
-  parseJSON v@(String t) = do
+  parseJSON v@(String _) = do
                              (tt :: DT.Text) <- parseJSON v
                              let (bytes, failbytes) = B16.decode $ TE.encodeUtf8 tt
                              if not . B.null $ failbytes then
@@ -95,4 +95,5 @@ instance DS.Serialize (Hash Id w) where
   put (Hash digest) = DS.put digest
   get = DS.get >>= \algo -> return (Hash algo)
 
+toString :: Hash a w -> String
 toString (Hash d) = DT.unpack . TE.decodeUtf8 . B16.encode $ convert d

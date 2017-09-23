@@ -7,9 +7,10 @@ import Network.BitFunctor.RestAPI as RestApi
 
 main = putStrLn "Hello World"
 
-run :: CurrencyDaemon
+run :: BlockchainNetworkDaemon
 run = do
-  core   <- currency Node.defaultSettings{ dbLocation = "~/.btf/blockchain" }  -- CurrencyMonad
-  forger <- forkIO $ currencyForger core Forger.defaultSettings
-  p2p    <- forkIO $ p2pNode core P2P.defaultSettings
-  rest   <- forkIO $ restApi core RestApi.defaultSettings
+  core    <- blockchain Node.defaultSettings { dbLocation = "~/.btf/blockchain" }  -- CurrencyMonad
+  forger  <- forkIO $ currencyForger core Forger.defaultSettings
+  p2p     <- forkIO $ p2pNode core P2P.defaultSettings
+  rest    <- forkIO $ restApi core RestApi.defaultSettings
+  storage <- forkIO $ storage core BlockchainStorage.defaultSettings

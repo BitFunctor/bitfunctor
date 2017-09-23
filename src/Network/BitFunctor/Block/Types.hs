@@ -39,6 +39,14 @@ data Block = Block { previous     :: Hash Id Block
                    } deriving (Show, Eq, Generic)
 
 
+--data FullBlock = FullBlock { block :: Block
+--                           , txs   :: [Transaction]
+--                           } deriving (Show, Eq)
+--
+--instance Identifiable FullBlock where
+--  id = id . block
+
+
 instance Binary Block where
   put block = do
     put (0 :: Word8)

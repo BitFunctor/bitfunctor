@@ -1,18 +1,44 @@
-module Network.BitFunctor.MemoryPool ( MemoryPool
+module Network.BitFunctor.MemoryPool ( 
+                                     -- PendingTxStorage (..)
+                                     -- , 
+                                     MemoryPool
                                      ) where
 
 import Data.Time.Clock (UTCTime)
 import Network.BitFunctor.Transaction
 import Network.BitFunctor.Identifiable as I
+import Network.BitFunctor.State.Ledger
 
 import qualified Data.Map as M
+
+
+-- data TxValidationResult = Ok
+
+-- data TxApplicationFailure = InsufficientBalance
+--                           | Other
+
+-- data TxApplicationResult = Applied -- add ledger id field?
+--                          | NotApplied { reason :: TxApplicationFailure }
+
+-- data TxVerificationContext = TxVerificationContext {
+--                               struct :: Maybe TxStructuralValidityContext,
+--                               ledgerConsistency :: [(Hash Id, TxApplicationResult)]
+-- }
+
+-- TxCheckResult
+-- TxCheckProof
+
+-- data BlockApplicationFailure = TxApplicationFailure
+--                              | Other
+
+-- data BlockApplicationResult = Applied
+--                             | NotApplied { reason :: BlockApplicationFailure }
+
 
 
 data TransactionMeta = TransactionMeta {
   transaction   :: Transaction,
   transactionId :: TransactionHash
-  firstSeen     :: UTCTime,
-  lastSeen      :: UTCTime
 }
 
 data MemoryPool = MemoryPool {
@@ -20,26 +46,16 @@ data MemoryPool = MemoryPool {
 }
 
 
-takeTx :: MemoryPool -> TransactionHash -> (Maybe Transaction, MemoryPool)
-takeTx = undefined
+-- instance PendingTxs MemoryPool where
+--   addTx mp le tx = mp { transactions = M.insert txId txMeta
+--                                                 (transactions mp)
+--                       }
+--                  where
+--                    txId   = I.id tx
+--                    txMeta = TransactionMeta { transaction   = tx
+--                                             , transactionId = txId
+--                                             }
+--   takeTx = undefined
+--   getTx  = undefined
+--   getTxs = undefined
 
-addTx :: MemoryPool -> Ledger -> Transaction -> (Bool, MemoryPool)
-addTx mp le tx | validateTx le tx = (True,  mp')
-               | otherwise        = (False, mp)
-               where
-                 mp' = mp { transactions = M.insert txId txMeta
-                                                    (transactions mp)
-                          }
-                 txId   = (I.id tx)
-                 txMeta = TransactionMeta { transaction   = tx
-                                          , transactionId = txId
-                                          , firstSeen     = 0
-                                          , lastSeen      = 0
-                                          }
-
-
-getTxs :: MemoryPool -> [Transaction]
-getTxs = undefined
-
-getTx :: MemoryPool -> TransactionHash -> Maybe Transaction
-getTx = undefined

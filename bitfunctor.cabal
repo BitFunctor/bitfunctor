@@ -30,8 +30,10 @@ library
                        Network.BitFunctor.Crypto.Signing.Types,
                        Network.BitFunctor.Crypto.Types,
                        Network.BitFunctor.Identifiable,
+                       Network.BitFunctor.MemoryPool,
                        Network.BitFunctor.State.GlobalLedger,
                        Network.BitFunctor.State.Ledger,
+                       Network.BitFunctor.State.Pending,
                        Network.BitFunctor.Transaction,
                        Network.BitFunctor.Transaction.Types,
                        Network.BitFunctor.Common
@@ -63,6 +65,7 @@ test-suite tests
                        , Network.BitFunctor.Crypto.Arbitrary
                        , Network.BitFunctor.Block.Arbitrary
                        , Network.BitFunctor.Block.Tests
+                       , Network.BitFunctor.State.Tests
                        , Network.BitFunctor.Transaction.Arbitrary
                        , Network.BitFunctor.Transaction.Tests
                        , Network.BitFunctor.Tests
